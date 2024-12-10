@@ -6,7 +6,7 @@ include(cmake/deps.cmake)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         set(CMAKE_TOOLCHAIN_FILE ~/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
 endif()
@@ -26,10 +26,9 @@ set(COMMON_COMPILE_OPTIONS
         -Wno-unused-parameter
 )
 
-
-
 include_directories(${CMAKE_SOURCE_DIR}/include)
-add_executable(server main.cpp)
+file(GLOB SOURCES "src/*.cpp") 
+add_executable(server main.cpp ${SOURCES})
 
 target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})

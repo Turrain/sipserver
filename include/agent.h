@@ -1,91 +1,184 @@
-#include "auralis_client.h"
-#include "llm_manager.h"
+#pragma once
+#include "json.hpp"
+
 #include "logger.h"
-#include "whisper_client.h"
-#include <functional>
-#include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
-class AgentSIP {
+#include "provider_manager.h"
+using json = nlohmann::json;
+
+class Agent {
 public:
-    AgentSIP(const std::string &whisper_url = "ws://localhost:8765",
-        const std::string &auralis_url = "ws://localhost:8766",
-        const std::string &model_name = "gemma2-9b-it",
-        const std::string &api_key = "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") :
-        messages_ { { "system", "You are a helpful assistant." }, { "user", "Tell me a joke." } },
-        model_(model_name),
-        groqClient_(LLMClientFactory::instance().create("groq", { { "apiKey", api_key } }))
+    std::string id;
+    json config;
+
+    struct STMEntry {
+        std::string role;
+        std::string content;
+    };
+    std::deque<STMEntry> shortTermMemory;
+    int stmCapacity;
+    Agent(const std::string &agent_id, const json &cfg) :
+        id(agent_id), config(cfg)
     {
-        connectClients(whisper_url, auralis_url);
-        configureCallbacks();
+        stmCapacity = config.value("stm_capacity", 10); // Default STM capacity
+        shortTermMemory.clear(); // Ensure STM is empty when initialized
+    }
+    void addToSTM(const std::string &role, const std::string &content)
+    {
+        if (shortTermMemory.size() >= stmCapacity) {
+            shortTermMemory.pop_front(); // Remove the oldest entry
+        }
+        shortTermMemory.push_back({ role, content });
+        LOG_DEBUG("Agent %s added to STM: %s - %s", id.c_str(), role.c_str(), content.c_str());
     }
 
-    void sendAudio(const std::vector<int16_t> &audio_data)
+    std::vector<STMEntry> getSTM() const
     {
-        whisperClient_.send_audio(audio_data);
+        return std::vector<STMEntry>(shortTermMemory.begin(), shortTermMemory.end());
     }
 
-    void sendText(const std::string &text)
+    void clearSTM()
     {
-        auralisClient_.synthesize_text(text);
+        shortTermMemory.clear();
+        LOG_DEBUG("Agent %s cleared STM", id.c_str());
     }
 
-    void setAudioChunkCallback(AuralisClient::AudioChunkCallback callback)
+    virtual ~Agent() = default;
+    virtual void think(const std::string &message) = 0;
+    virtual void listen(const std::vector<int16_t> &audio_data) = 0;
+    virtual void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) = 0;
+    virtual void configure(const json &newConfig)
     {
-        audioCallback_ = std::move(callback);
+        config.merge_patch(newConfig); // Use JSON merge patch to update
+        if (newConfig.contains("stm_capacity")) {
+            stmCapacity = newConfig["stm_capacity"];
+        }
+        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
+    }
+};
+
+class BaseAgent: public Agent {
+public:
+    BaseAgent(const std::string &agent_id, const json &cfg) :
+        Agent(agent_id, cfg) { }
+
+    void think(const std::string &message) override
+    {
+        LOG_DEBUG("BaseAgent %s thinks: %s", id.c_str(), message.c_str());
+        addToSTM("user", message);
+
+        // Get the provider name from the agent's configuration
+        std::string providerName = config.value("provider", "");
+
+        if (providerName.empty()) {
+            LOG_ERROR("Agent %s does not have a provider specified in its configuration.", id.c_str());
+            return;
+        }
+
+        // Check if the provider is available in the ProviderManager
+        if (!ProviderManager::getInstance()->hasProvider(providerName)) {
+            LOG_ERROR("Provider '%s' specified for agent %s is not available.", providerName.c_str(), id.c_str());
+            return;
+        }
+
+        // Use ProviderManager to create the request
+        std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, message);
+
+        if (!request) {
+            LOG_ERROR("Failed to create a request for provider: %s", providerName.c_str());
+            return;
+        }
+
+        // Apply provider-specific configurations from the agent's config
+        if (config.contains(providerName)) {
+            request->fromJson(config[providerName]);
+        }
+
+        // Process the request using the ProviderManager
+        auto response = ProviderManager::getInstance()->processRequest(request);
+
+        if (response) {
+            LOG_INFO("Agent %s received response: %s", id.c_str(), response->toString().c_str());
+            addToSTM("assistant", response->toString());
+        } else {
+            LOG_ERROR("Agent %s did not receive a response.", id.c_str());
+        }
+    }
+
+    void listen(const std::vector<int16_t> &audio_data) override
+    {
+        LOG_DEBUG("BaseAgent %s listens to audio data", id.c_str());
+    }
+
+    void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) override
+    {
+        LOG_DEBUG("BaseAgent %s speaks", id.c_str());
+    }
+
+    void configure(const json &newConfig) override
+    {
+        config.merge_patch(newConfig);
+        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
+    }
+};
+class AgentManager {
+public:
+    // Singleton instance
+    static AgentManager *getInstance()
+    {
+        static AgentManager instance; // Guaranteed to be initialized only once
+        return &instance;
+    }
+
+    std::shared_ptr<Agent> createAgent(const std::string &id,
+        const std::string &type,
+        const json &cfg)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (agents_.find(id) != agents_.end()) {
+            // Return existing if found; or throw an error if you want to restrict duplicates
+            return agents_[id];
+        }
+
+        std::shared_ptr<Agent> agentPtr;
+        if (type == "BaseAgent") {
+            agentPtr = std::make_shared<BaseAgent>(id, cfg);
+        } else {
+            // Default
+            agentPtr = std::make_shared<BaseAgent>(id, cfg);
+        }
+        agents_[id] = agentPtr;
+        return agentPtr;
+    }
+
+    std::shared_ptr<Agent> getAgent(const std::string &id)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (agents_.find(id) != agents_.end()) {
+            return agents_[id];
+        }
+        return nullptr;
+    }
+
+    // Method to update an agent's configuration
+    bool updateAgentConfig(const std::string &agentId, const json &newConfig)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (agents_.find(agentId) != agents_.end()) {
+            agents_[agentId]->configure(newConfig);
+            return true;
+        }
+        return false;
     }
 
 private:
-    void connectClients(const std::string &whisper_url, const std::string &auralis_url)
-    {
-        whisperClient_.connect(whisper_url);
-        auralisClient_.connect(auralis_url);
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+    AgentManager() { } // Private constructor
+    ~AgentManager() { } // Private destructor
+    AgentManager(const AgentManager &) = delete; // Prevent copy-construction
+    AgentManager &operator=(const AgentManager &) = delete; // Prevent assignment
 
-    }
-
-    void configureCallbacks()
-    {
-        whisperClient_.set_transcription_callback(
-            [this](const std::string &transcription) {
-                LOG_DEBUG("Transcription: %s", transcription.c_str());
-                messages_.emplace_back("user", transcription);
-                auto response = generateText(transcription);
-                sendText(response);
-            });
-
-        auralisClient_.set_audio_callback(
-            [this](const std::vector<int16_t> &audio_data) {
-                LOG_DEBUG("Audio size: %zu", audio_data.size());
-                if (audioCallback_) {
-                    audioCallback_(audio_data);
-                }
-            });
-    }
-
-    std::string generateText(const std::string &input)
-    {
-        GroqRequest request;
-        request.messages = messages_;
-        request.model = model_;
-        auto responsePtr = groqClient_->generateResponse(request);
-        auto groqResponse = dynamic_cast<GroqResponse *>(responsePtr.get());
-
-        if (!groqResponse || groqResponse->choices.empty()) {
-            throw std::runtime_error("Invalid response from GroqClient");
-        }
-
-        const auto &choice = groqResponse->choices.front();
-        LOG_DEBUG("Groq Response: %s", choice.message.content.c_str());
-        messages_.emplace_back(choice.message.role, choice.message.content);
-        return choice.message.content;
-    }
-    std::vector<GroqRequest::Message> messages_ = { { "system", "You are a helpful assistant, make a short response for one sentence." } };
-    const std::string model_;
-    WhisperClient whisperClient_;
-    
-    AuralisClient auralisClient_;
-    AuralisClient::AudioChunkCallback audioCallback_;
-    std::unique_ptr<LLMClient> groqClient_;
+    std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;
+    std::mutex mutex_;
 };

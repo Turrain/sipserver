@@ -1,14 +1,16 @@
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include <limits>
+
 #include <map>
 #include <mutex>
 #include <string>
 #include <thread>
-
 #include "httplib.h"
-#include "jmanager.h"
+#include "manager.h"
+#include "request_factory.h"
+#include "ollama_provider.h"
+#include "groq_provider.h"
 #include "json.hpp"
-#include "llm_provider.h"
+#include "agent.h"
+
 
 // TODO: Update a docker files to use cache, or optimize build
 // TODO: Make a tests for the project
@@ -66,9 +68,10 @@ private:
             std::string username = x["username"].get<std::string>();
             std::string password = x["password"].get<std::string>();
             std::string registrar = x["registrarUri"].get<std::string>();
+            std::string agentId = x["agentId"].get<std::string>();
 
             // Initiate the action on Manager
-            m_sipManager.addAccount(accountId, domain, username, password, registrar);
+            m_sipManager.addAccount(accountId, domain, username, password, registrar,agentId);
 
             // Block and wait for the manager to complete and set a status
             // code/response Assuming the manager sets some flag or triggers
@@ -162,12 +165,10 @@ private:
         });
     }
 };
-ProviderManager *ProviderManager::instance = nullptr;
-std::mutex ProviderManager::mutex;
+
 std::mutex Logger::logMutex;
 int main()
 {
-    registerLLMClients();
     ProviderManager *providerManager = ProviderManager::getInstance();
     providerManager->registerProviderFactory("Ollama", std::make_unique<OllamaProviderFactory>());
     providerManager->registerProviderFactory("Groq", std::make_unique<GroqProviderFactory>());
@@ -180,13 +181,13 @@ int main()
     providerManager->loadConfig(configData); // Pass json object to loadConfig
 
     // Create AgentManager and register agent factory
-    AgentManager agentManager;
+    AgentManager* agentManager = AgentManager::getInstance();
     json agent1Config;
     agent1Config["provider"] = "Ollama";
     agent1Config["Ollama"]["model"] = "llama3.2:3b"; // Specify the Ollama model
     agent1Config["Ollama"]["stream"] = false; // Example of provider-specific config
 
-    auto agent1 = agentManager.createAgent("agent1", "BaseAgent", agent1Config);
+    auto agent1 = agentManager->createAgent("agent1", "BaseAgent", agent1Config);
 
     // Agent 2: Using Groq
     json agent2Config;
@@ -194,7 +195,7 @@ int main()
     agent2Config["Groq"]["model"] = "gemma2-9b-it";
     agent2Config["Groq"]["temperature"] = 0.8; // Example of provider-specific config
 
-    auto agent2 = agentManager.createAgent("agent2", "BaseAgent", agent2Config);
+    auto agent2 = agentManager->createAgent("agent2", "BaseAgent", agent2Config);
     std::string command;
     std::cout << "Enter a command (or 'exit'): ";
     while (std::getline(std::cin, command) && command != "exit") {
@@ -210,7 +211,7 @@ int main()
             iss >> cmd >> agentId;
             std::getline(iss >> std::ws, message);
 
-            auto agent = agentManager.getAgent(agentId);
+            auto agent = agentManager->getAgent(agentId);
             if (agent) {
                 agent->think(message);
             } else {
@@ -221,7 +222,7 @@ int main()
             std::string cmd, agentId;
             iss >> cmd >> agentId;
 
-            auto agent = agentManager.getAgent(agentId);
+            auto agent = agentManager->getAgent(agentId);
             if (agent) {
                 std::cout << agent->config.dump(4) << std::endl;
             } else {
@@ -235,7 +236,7 @@ int main()
 
             try {
                 json newConfig = json::parse(jsonConfigStr);
-                if (agentManager.updateAgentConfig(agentId, newConfig)) {
+                if (agentManager->updateAgentConfig(agentId, newConfig)) {
                     std::cout << "Agent config updated.\n";
                 } else {
                     std::cout << "Agent not found.\n";
