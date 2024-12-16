@@ -1,0 +1,16 @@
+# CMake
+CMakeCache.txt
+CMakeFiles
+CMakeOutput.log
+cpack_options.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+cmake_install.cmake
+CMakeFiles/*
+
+cmake-build-debug/*
+cmake-build-release/*
+cmake-build-*
+.idea/*
+build/*
