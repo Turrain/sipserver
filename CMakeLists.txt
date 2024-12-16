@@ -2,9 +2,17 @@ cmake_minimum_required(VERSION 3.15)
 
 project(server)
 include(cmake/deps.cmake)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+set(CMAKE_TOOLCHAIN_FILE ~/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
+include(${CMAKE_TOOLCHAIN_FILE})
+find_package(asio CONFIG REQUIRED)
+find_package(websocketpp CONFIG REQUIRED)
+find_package(Crow CONFIG REQUIRED)
+
 
 set(COMMON_COMPILE_DEFINITIONS
         WEBRTC_LINUX
@@ -21,6 +29,8 @@ set(COMMON_COMPILE_OPTIONS
 include_directories(${CMAKE_SOURCE_DIR}/include)
 add_executable(server main.cpp)
 
-target_link_libraries(server PRIVATE pjproject websocketpp my_webrtc Crow::Crow )
+target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp Crow::Crow  asio::asio  )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
+
+

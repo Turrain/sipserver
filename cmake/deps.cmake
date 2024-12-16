@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
-find_package(Boost COMPONENTS system REQUIRED)
+
 # ----------------------------------------------------------
 # pjproject: Isolate external build, produce INTERFACE target
 # ----------------------------------------------------------
@@ -59,42 +59,6 @@ target_link_libraries(pjproject INTERFACE
         rt
         pthread
 )
-
-# ----------------------------------------------------------
-# asio: Standalone Asio via FetchContent
-# ----------------------------------------------------------
-# FetchContent_Declare(
-#         asio
-#         GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
-#         GIT_TAG master
-# )
-
-# FetchContent_MakeAvailable(asio)
-
-# add_library(asio INTERFACE)
-# target_include_directories(asio INTERFACE
-#         ${asio_SOURCE_DIR}/asio/include
-# )
-# target_link_libraries(asio INTERFACE pthread)
-# set(ASIO_INCLUDE_DIR "${asio_SOURCE_DIR}/asio/include" CACHE PATH "Asio include dir")
-
-# ----------------------------------------------------------
-# websocketpp: Interfacing with Asio
-# ----------------------------------------------------------
-FetchContent_Declare(
-        websocketpp
-        GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
-        GIT_TAG master
-)
-FetchContent_MakeAvailable(websocketpp)
-
-add_library(websocketpp INTERFACE)
-target_include_directories(websocketpp INTERFACE
-        ${websocketpp_SOURCE_DIR}
-)
-target_compile_definitions(websocketpp INTERFACE _WEBSOCKETPP_CPP11_STL_)
-target_link_libraries(websocketpp INTERFACE )
-
 # ----------------------------------------------------------
 # WebRTC: Local static library build
 # ----------------------------------------------------------
@@ -109,15 +73,4 @@ target_include_directories(my_webrtc PUBLIC
 )
 target_link_libraries(my_webrtc PUBLIC pthread m)
 
-# ----------------------------------------------------------
-# Crow: Modern C++ web server framework
-# ----------------------------------------------------------
 
-FetchContent_Declare(
-        crow
-        GIT_REPOSITORY https://github.com/CrowCpp/crow.git
-        GIT_TAG master
-)
-FetchContent_MakeAvailable(crow)
-
-# crow exports its targets; no direct manipulation required.

@@ -22,12 +22,20 @@
 #include <sstream>
 #include <string>
 #include "webrtcvad.h"
+#include "whisper_client.h"
 using namespace pj;
 //----------------------------------------------------------------------
 // Logger class
 //----------------------------------------------------------------------
 
-enum class LogLevel { DEBUG, INFO, WARNING, ERROR, CRITICAL };
+enum class LogLevel
+{
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR,
+  CRITICAL
+};
 
 const std::map<::LogLevel, std::string> LogLevelColors = {
     {::LogLevel::DEBUG, "\033[36m"},   // Cyan
@@ -39,9 +47,11 @@ const std::map<::LogLevel, std::string> LogLevelColors = {
 
 const std::string ResetColor = "\033[0m";
 
-class Logger {
+class Logger
+{
 public:
-  static Logger &getInstance() {
+  static Logger &getInstance()
+  {
     static Logger instance;
     return instance;
   }
@@ -53,27 +63,36 @@ public:
 
   void enableConsoleLogging(bool enable) { consoleLogging = enable; }
 
-  void enableFileLogging(bool enable, const std::string &filename = "log.txt") {
+  void enableFileLogging(bool enable, const std::string &filename = "log.txt")
+  {
     std::lock_guard<std::mutex> lock(mtx); // Ensure thread safety
     fileLogging = enable;
-    if (fileLogging) {
-      if (fileStream.is_open()) {
+    if (fileLogging)
+    {
+      if (fileStream.is_open())
+      {
         fileStream.close();
       }
       fileStream.open(filename, std::ios::out | std::ios::app);
-      if (!fileStream) {
+      if (!fileStream)
+      {
         std::cerr << "Failed to open log file: " << filename << std::endl;
         fileLogging = false;
       }
-    } else {
-      if (fileStream.is_open()) {
+    }
+    else
+    {
+      if (fileStream.is_open())
+      {
         fileStream.close();
       }
     }
   }
 
-  void log(::LogLevel level, const std::string &message) {
-    if (level < logLevel) {
+  void log(::LogLevel level, const std::string &message)
+  {
+    if (level < logLevel)
+    {
       return;
     }
 
@@ -88,11 +107,13 @@ public:
         << coloredMessage << "\n";
     std::string logMessage = oss.str();
 
-    if (consoleLogging) {
+    if (consoleLogging)
+    {
       std::cout << logMessage;
     }
 
-    if (fileLogging && fileStream.is_open()) {
+    if (fileLogging && fileStream.is_open())
+    {
       fileStream << "[" << timestamp << "] [" << levelStr << "] " << message
                  << "\n";
     }
@@ -101,15 +122,18 @@ public:
   // Existing logging methods accepting std::string
   void debug(const std::string &message) { log(::LogLevel::DEBUG, message); }
   void info(const std::string &message) { log(::LogLevel::INFO, message); }
-  void warning(const std::string &message) {
+  void warning(const std::string &message)
+  {
     log(::LogLevel::WARNING, message);
   }
   void error(const std::string &message) { log(::LogLevel::ERROR, message); }
-  void critical(const std::string &message) {
+  void critical(const std::string &message)
+  {
     log(::LogLevel::CRITICAL, message);
   }
 
-  void debug(const char *format, ...) {
+  void debug(const char *format, ...)
+  {
     va_list args;
     va_start(args, format);
     std::string formattedMessage = formatString(format, args);
@@ -117,7 +141,8 @@ public:
     log(::LogLevel::DEBUG, formattedMessage);
   }
 
-  void info(const char *format, ...) {
+  void info(const char *format, ...)
+  {
     va_list args;
     va_start(args, format);
     std::string formattedMessage = formatString(format, args);
@@ -125,7 +150,8 @@ public:
     log(::LogLevel::INFO, formattedMessage);
   }
 
-  void warning(const char *format, ...) {
+  void warning(const char *format, ...)
+  {
     va_list args;
     va_start(args, format);
     std::string formattedMessage = formatString(format, args);
@@ -133,7 +159,8 @@ public:
     log(::LogLevel::WARNING, formattedMessage);
   }
 
-  void error(const char *format, ...) {
+  void error(const char *format, ...)
+  {
     va_list args;
     va_start(args, format);
     std::string formattedMessage = formatString(format, args);
@@ -141,7 +168,8 @@ public:
     log(::LogLevel::ERROR, formattedMessage);
   }
 
-  void critical(const char *format, ...) {
+  void critical(const char *format, ...)
+  {
     va_list args;
     va_start(args, format);
     std::string formattedMessage = formatString(format, args);
@@ -158,8 +186,10 @@ private:
   Logger()
       : logLevel(::LogLevel::DEBUG), consoleLogging(true), fileLogging(false) {}
 
-  std::string logLevelToString(::LogLevel level) {
-    switch (level) {
+  std::string logLevelToString(::LogLevel level)
+  {
+    switch (level)
+    {
     case ::LogLevel::DEBUG:
       return "DEBUG";
     case ::LogLevel::INFO:
@@ -175,23 +205,28 @@ private:
     }
   }
 
-  std::string getColoredLevel(::LogLevel level, const std::string &levelStr) {
+  std::string getColoredLevel(::LogLevel level, const std::string &levelStr)
+  {
     auto it = LogLevelColors.find(level);
-    if (it != LogLevelColors.end()) {
+    if (it != LogLevelColors.end())
+    {
       return it->second + levelStr + ResetColor;
     }
     return levelStr;
   }
 
-  std::string getColoredMessage(const std::string &message, ::LogLevel level) {
+  std::string getColoredMessage(const std::string &message, ::LogLevel level)
+  {
     auto it = LogLevelColors.find(level);
-    if (it != LogLevelColors.end()) {
+    if (it != LogLevelColors.end())
+    {
       return it->second + message + ResetColor;
     }
     return message;
   }
 
-  std::string getCurrentTimestamp() {
+  std::string getCurrentTimestamp()
+  {
     auto now = std::chrono::system_clock::now();
     auto timeT = std::chrono::system_clock::to_time_t(now);
     auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -211,7 +246,8 @@ private:
     return oss.str();
   }
 
-  std::string formatString(const char *format, va_list args) {
+  std::string formatString(const char *format, va_list args)
+  {
     std::array<char, 1024> buffer;
     va_list argsCopy;
     va_copy(argsCopy, args);
@@ -219,13 +255,17 @@ private:
     int length = std::vsnprintf(buffer.data(), buffer.size(), format, argsCopy);
     va_end(argsCopy);
 
-    if (length < 0) {
+    if (length < 0)
+    {
       return "Formatting error";
     }
 
-    if (static_cast<size_t>(length) < buffer.size()) {
+    if (static_cast<size_t>(length) < buffer.size())
+    {
       return std::string(buffer.data(), length);
-    } else {
+    }
+    else
+    {
       std::string result(length, '\0');
       std::vsnprintf(&result[0], length + 1, format, args);
       return result;
@@ -237,7 +277,8 @@ private:
 // VAD class
 //----------------------------------------------------------------------
 
-class jVAD {
+class jVAD
+{
 public:
   using VoiceSegmentCallback =
       std::function<void(const std::vector<MediaFrame> &)>;
@@ -245,35 +286,42 @@ public:
   using VoiceFrameCallback = std::function<void(const MediaFrame &)>;
 
 public:
-  jVAD() {
+  jVAD()
+  {
     vad.setMode(2);
     vadRingBuffer.resize(PADDING_MS / FRAME_DURATION_MS);
     voiceBuffer.reserve(MAX_BUFFER_SIZE);
   }
-  void processFrame(const MediaFrame &frame) {
+  void processFrame(const MediaFrame &frame)
+  {
     std::lock_guard lock(bufferMutex);
     const auto *int_data = reinterpret_cast<const int16_t *>(frame.buf.data());
     const bool is_voiced = vad.process(8000, int_data, 160);
     processVAD(frame, is_voiced);
   }
 
-  void setVoiceSegmentCallback(VoiceSegmentCallback callback) {
+  void setVoiceSegmentCallback(VoiceSegmentCallback callback)
+  {
     onVoiceSegment = std::move(callback);
   }
 
-  void setSilenceCallback(SilenceCallback callback) {
+  void setSilenceCallback(SilenceCallback callback)
+  {
     onSilence = std::move(callback);
   }
 
-  void setVoiceFrameCallback(VoiceFrameCallback callback) {
+  void setVoiceFrameCallback(VoiceFrameCallback callback)
+  {
     onVoiceFrame = std::move(callback);
   }
-  std::vector<int16_t> mergeFrames(const std::vector<MediaFrame> &frames) {
+  static std::vector<int16_t> mergeFrames(const std::vector<MediaFrame> &frames)
+  {
     std::vector<int16_t> result;
 
     result.reserve(frames.size() * 320);
 
-    for (const auto &frame : frames) {
+    for (const auto &frame : frames)
+    {
       const int16_t *samples =
           reinterpret_cast<const int16_t *>(frame.buf.data());
       result.insert(result.end(), samples, samples + frame.size / 2);
@@ -298,41 +346,54 @@ private:
   static constexpr int FRAME_DURATION_MS = 20;
   static constexpr float VAD_RATIO = 0.85;
 
-  void processVAD(const MediaFrame &frame, bool is_voiced) {
-    if (!triggered) {
+  void processVAD(const MediaFrame &frame, bool is_voiced)
+  {
+
+    if (!triggered)
+    {
       vadRingBuffer.emplace_back(frame, is_voiced);
-      if (vadRingBuffer.size() > PADDING_MS / FRAME_DURATION_MS) {
+      if (vadRingBuffer.size() > PADDING_MS / FRAME_DURATION_MS)
+      {
         vadRingBuffer.pop_front();
       }
 
       int num_voiced =
           std::count_if(vadRingBuffer.begin(), vadRingBuffer.end(),
-                        [](const auto &pair) { return pair.second; });
+                        [](const auto &pair)
+                        { return pair.second; });
 
-      if (num_voiced > VAD_RATIO * vadRingBuffer.size()) {
+      if (num_voiced > VAD_RATIO * vadRingBuffer.size())
+      {
         triggered = true;
         voiceBuffer.clear();
 
         // Add initial padding frames to voice buffer
-        for (const auto &[f, s] : vadRingBuffer) {
+        for (const auto &[f, s] : vadRingBuffer)
+        {
           processVoicedFrame(f);
         }
         vadRingBuffer.clear();
       }
-    } else {
+    }
+    else
+    {
       processVoicedFrame(frame);
       vadRingBuffer.emplace_back(frame, is_voiced);
-      if (vadRingBuffer.size() > PADDING_MS / FRAME_DURATION_MS) {
+      if (vadRingBuffer.size() > PADDING_MS / FRAME_DURATION_MS)
+      {
         vadRingBuffer.pop_front();
       }
 
       // Count unvoiced frames
       int num_unvoiced =
           std::count_if(vadRingBuffer.begin(), vadRingBuffer.end(),
-                        [](const auto &pair) { return !pair.second; });
+                        [](const auto &pair)
+                        { return !pair.second; });
 
-      if (num_unvoiced > VAD_RATIO * vadRingBuffer.size()) {
-        if (onVoiceSegment && !voiceBuffer.empty()) {
+      if (num_unvoiced > VAD_RATIO * vadRingBuffer.size())
+      {
+        if (onVoiceSegment && !voiceBuffer.empty())
+        {
           onVoiceSegment(voiceBuffer);
         }
         triggered = false;
@@ -342,17 +403,22 @@ private:
       }
     }
   }
-  void processVoicedFrame(const MediaFrame &frame) {
-    if (voiceBuffer.size() < MAX_BUFFER_SIZE) {
+  void processVoicedFrame(const MediaFrame &frame)
+  {
+    if (voiceBuffer.size() < MAX_BUFFER_SIZE)
+    {
       voiceBuffer.push_back(frame);
     }
-    if (onVoiceFrame) {
+    if (onVoiceFrame)
+    {
       onVoiceFrame(frame);
     }
   }
 
-  void processSilence() {
-    if (onSilence) {
+  void processSilence()
+  {
+    if (onSilence)
+    {
       onSilence();
     }
   }
@@ -362,57 +428,86 @@ private:
 // MediaPort class
 //----------------------------------------------------------------------
 
-class jMediaPort : public AudioMediaPort {
+class jMediaPort : public AudioMediaPort
+{
+
 public:
-  explicit jMediaPort() : AudioMediaPort() {
-    vad.setVoiceFrameCallback([this](const MediaFrame &frame) {
-      logger.info("Voice frame received, size: {} bytes", frame.size);
-    });
-    vad.setVoiceSegmentCallback([this](const std::vector<MediaFrame> &frames) {
-      logger.info("Complete voice segment detected with {} frames",
-                  frames.size());
-    });
+  jVAD vad;
+  explicit jMediaPort() : AudioMediaPort()
+  {
   }
-  void onFrameRequested(MediaFrame &frame) override {
+  void onFrameRequested(MediaFrame &frame) override
+  {
     frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
   }
   void onFrameReceived(MediaFrame &frame) override { vad.processFrame(frame); }
 
 private:
   ::Logger &logger = ::Logger::getInstance();
-  jVAD vad;
 };
 
 //----------------------------------------------------------------------
 // Call class
 //----------------------------------------------------------------------
 
-class jCall : public Call {
+class jCall : public Call
+{
+
 public:
-  void onCallState(OnCallStateParam &prm) override {
+  void onCallState(OnCallStateParam &prm) override
+  {
     CallInfo ci = getInfo();
     logger.info("Call {} state: {}", ci.id, ci.stateText);
   }
-  void onCallMediaState(OnCallMediaStateParam &prm) override {
+  void onCallMediaState(OnCallMediaStateParam &prm) override
+  {
     CallInfo ci = getInfo();
     logger.info("Call %d media state: %s", ci.id, ci.stateText);
     for (int i = 0; i < ci.media.size(); i++)
       if (ci.media[i].status == PJSUA_CALL_MEDIA_ACTIVE &&
-          ci.media[i].type == PJMEDIA_TYPE_AUDIO && getMedia(i)) {
+          ci.media[i].type == PJMEDIA_TYPE_AUDIO && getMedia(i))
+      {
         auto *aud_med = dynamic_cast<AudioMedia *>(getMedia(i));
         auto &aud_dev_manager = Endpoint::instance().audDevManager();
 
         auto portInfo = aud_med->getPortInfo();
         auto format = portInfo.format;
-
+        aud_med->startTransmit(mediaPort);
         logger.info("Port info: %s", portInfo.name);
       }
   }
 
   explicit jCall(Account &acc, int call_id = PJSUA_INVALID_ID)
-      : Call(acc, call_id) {}
-
+      : Call(acc, call_id)
+  {
+    whisperClient.connect("ws://localhost:8765");
+    whisperClient.set_transcription_callback(
+        [this](const std::string &transcription)
+        {
+          logger.info("Transcription: %s", transcription);
+        });
+    mediaPort.vad.setVoiceSegmentCallback(
+        [this](const std::vector<MediaFrame> &frames)
+        {
+          whisperClient.send_audio(jVAD::mergeFrames(frames));
+        });
+    if (mediaPort.getPortId() == PJSUA_INVALID_ID)
+    {
+      auto mediaFormatAudio = MediaFormatAudio();
+        mediaFormatAudio.type = PJMEDIA_TYPE_AUDIO;
+        mediaFormatAudio.frameTimeUsec = 20000;
+        mediaFormatAudio.channelCount = 1;
+        mediaFormatAudio.clockRate = 8000;
+        mediaFormatAudio.bitsPerSample = 16;
+        mediaFormatAudio.avgBps = 128000;
+        mediaFormatAudio.maxBps = 128000;
+      mediaPort.createPort("default", mediaFormatAudio);
+    }
+  }
+ 
 private:
+  WhisperClient whisperClient;
+  jMediaPort mediaPort;
   ::Logger &logger = ::Logger::getInstance();
 };
 
@@ -420,20 +515,24 @@ private:
 // Account class
 //----------------------------------------------------------------------
 
-class jAccount : public Account {
+class jAccount : public Account
+{
 public:
   using onRegStateCallback = std::function<void(bool, pj_status_t)>;
 
-  void registerRegStateCallback(onRegStateCallback cb) {
+  void registerRegStateCallback(onRegStateCallback cb)
+  {
     regStateCallback = std::move(cb);
   }
-  void onRegState(OnRegStateParam &prm) override {
+  void onRegState(OnRegStateParam &prm) override
+  {
     AccountInfo ai = getInfo();
 
     logger.info("Registration state: %d", ai.regIsActive);
     logger.info("Registration status: %d", ai.regStatus);
   }
-  void onIncomingCall(OnIncomingCallParam &iprm) override {
+  void onIncomingCall(OnIncomingCallParam &iprm) override
+  {
     auto *call = new jCall(*this, iprm.callId);
     CallInfo ci = call->getInfo();
     logger.info("Incoming call from %s", ci.remoteUri);
@@ -454,13 +553,16 @@ private:
 // Manager class
 //----------------------------------------------------------------------
 
-class Manager {
+class Manager
+{
 private:
   ::Logger &logger = ::Logger::getInstance();
 
 public:
-  Manager() {
-    try {
+  Manager()
+  {
+    try
+    {
       // Initialize PJSIP endpoint
       m_endpoint.libCreate();
 
@@ -482,7 +584,9 @@ public:
       // Start worker thread
       m_workerThread =
           std::make_unique<std::thread>(&Manager::workerThreadMain, this);
-    } catch (pj::Error &err) {
+    }
+    catch (pj::Error &err)
+    {
       std::cerr << "PJSIP Initialization Error: " << err.info() << std::endl;
       throw;
     }
@@ -491,14 +595,17 @@ public:
 
   void addAccount(const std::string &accountId, const std::string &domain,
                   const std::string &username, const std::string &password,
-                  const std::string &registrarUri) {
-    enqueueTask([this, accountId, domain, username, password, registrarUri]() {
+                  const std::string &registrarUri)
+  {
+    enqueueTask([this, accountId, domain, username, password, registrarUri]()
+                {
       try {
         std::lock_guard<std::mutex> lock(m_accountsMutex);
 
         if (m_accounts.find(accountId) != m_accounts.end()) {
           throw std::invalid_argument("Account already exists: " + accountId);
         }
+        
         pj::AccountConfig accountConfig;
         accountConfig.idUri = "sip:" + username + "@" + domain;
         accountConfig.regConfig.registrarUri = registrarUri;
@@ -518,12 +625,13 @@ public:
       } catch (const pj::Error &err) {
 
       } catch (const std::exception &e) {
-      }
-    });
+      } });
   }
 
-  void removeAccount(const std::string &accountId) {
-    enqueueTask([this, accountId]() {
+  void removeAccount(const std::string &accountId)
+  {
+    enqueueTask([this, accountId]()
+                {
       try {
         std::lock_guard<std::mutex> lock(m_accountsMutex);
 
@@ -535,12 +643,13 @@ public:
         } else {
         }
       } catch (const pj::Error &err) {
-      }
-    });
+      } });
   }
 
-  void makeCall(const std::string &accountId, const std::string &destUri) {
-    enqueueTask([this, accountId, destUri]() {
+  void makeCall(const std::string &accountId, const std::string &destUri)
+  {
+    enqueueTask([this, accountId, destUri]()
+                {
       try {
         std::lock_guard<std::mutex> lock(m_accountsMutex);
 
@@ -558,12 +667,13 @@ public:
           m_activeCalls[call->getId()] = std::move(call);
         }
       } catch (const pj::Error &err) {
-      }
-    });
+      } });
   }
 
-  void hangupCall(int callId) {
-    enqueueTask([this, callId]() {
+  void hangupCall(int callId)
+  {
+    enqueueTask([this, callId]()
+                {
       try {
         std::lock_guard<std::mutex> lock(m_callsMutex);
 
@@ -577,24 +687,27 @@ public:
         } else {
         }
       } catch (const pj::Error &err) {
-      }
-    });
+      } });
   }
 
-  void shutdown() {
+  void shutdown()
+  {
     m_running = false;
     m_taskQueue.stop();
 
-    if (m_workerThread && m_workerThread->joinable()) {
+    if (m_workerThread && m_workerThread->joinable())
+    {
       m_workerThread->join();
     }
   }
 
 private:
   // Thread-safe task queue
-  class TaskQueue {
+  class TaskQueue
+  {
   public:
-    void enqueue(std::function<void()> task) {
+    void enqueue(std::function<void()> task)
+    {
       {
         std::lock_guard<std::mutex> lock(mutex);
         if (stopped)
@@ -604,11 +717,14 @@ private:
       condition.notify_one();
     }
 
-    std::function<void()> dequeue() {
+    std::function<void()> dequeue()
+    {
       std::unique_lock<std::mutex> lock(mutex);
-      condition.wait(lock, [this] { return !tasks.empty() || stopped; });
+      condition.wait(lock, [this]
+                     { return !tasks.empty() || stopped; });
 
-      if (stopped && tasks.empty()) {
+      if (stopped && tasks.empty())
+      {
         return nullptr;
       }
 
@@ -616,7 +732,8 @@ private:
       tasks.pop();
       return task;
     }
-    void stop() {
+    void stop()
+    {
       {
         std::lock_guard<std::mutex> lock(mutex);
         stopped = true;
@@ -631,37 +748,48 @@ private:
     std::atomic<bool> stopped{false};
   };
 
-  void workerThreadMain() {
+  void workerThreadMain()
+  {
     pj_thread_desc threadDesc;
     pj_thread_t *thread = nullptr;
 
     // Register this thread with PJSIP
-    if (pj_thread_register("WorkerThread", threadDesc, &thread) != PJ_SUCCESS) {
+    if (pj_thread_register("WorkerThread", threadDesc, &thread) != PJ_SUCCESS)
+    {
       std::cerr << "Failed to register worker thread" << std::endl;
       return;
     }
 
-    while (m_running) {
-      try {
+    while (m_running)
+    {
+      try
+      {
         auto task = m_taskQueue.dequeue();
         if (task)
           task();
-      } catch (const std::exception &e) {
+      }
+      catch (const std::exception &e)
+      {
         std::cerr << "Worker Thread Error: " << e.what() << std::endl;
       }
     }
     shutdownPjsip();
   }
-  void shutdownPjsip() {
+  void shutdownPjsip()
+  {
     // Hangup all active calls
     {
       std::lock_guard<std::mutex> lock(m_callsMutex);
-      for (auto &[id, call] : m_activeCalls) {
-        try {
+      for (auto &[id, call] : m_activeCalls)
+      {
+        try
+        {
           pj::CallOpParam callOpParam;
           callOpParam.statusCode = PJSIP_SC_DECLINE;
           call->hangup(callOpParam);
-        } catch (...) {
+        }
+        catch (...)
+        {
           std::cerr << "Error hanging up call: " << id << std::endl;
         }
       }
@@ -677,10 +805,14 @@ private:
     // Destroy PJSIP library
     m_endpoint.libDestroy();
   }
-  void enqueueTask(std::function<void()> task) {
-    if (m_running) {
+  void enqueueTask(std::function<void()> task)
+  {
+    if (m_running)
+    {
       m_taskQueue.enqueue(std::move(task));
-    } else {
+    }
+    else
+    {
       throw std::runtime_error("Manager is shutting down");
     }
   }
