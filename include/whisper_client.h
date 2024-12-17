@@ -15,7 +15,6 @@ public:
                        audio_data.data(),
                        audio_data.size() * sizeof(int16_t),
                        websocketpp::frame::opcode::binary);
-            std::cout << "Sending audio" << std::endl;
         } catch (const std::exception& e) {
             on_error(e.what());
         }
@@ -32,7 +31,6 @@ protected:
                 if (transcription_callback) {
                     transcription_callback(transcription);
                 }
-                std::cout << "Transcription: " << transcription << std::endl;
             }
 
         } catch (const std::exception& e) {

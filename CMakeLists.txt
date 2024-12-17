@@ -9,9 +9,7 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_TOOLCHAIN_FILE ~/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
 include(${CMAKE_TOOLCHAIN_FILE})
-find_package(asio CONFIG REQUIRED)
 find_package(websocketpp CONFIG REQUIRED)
-find_package(Crow CONFIG REQUIRED)
 
 
 set(COMMON_COMPILE_DEFINITIONS
@@ -26,11 +24,11 @@ set(COMMON_COMPILE_OPTIONS
         -Wno-unused-parameter
 )
 
+
+
 include_directories(${CMAKE_SOURCE_DIR}/include)
 add_executable(server main.cpp)
 
-target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp Crow::Crow  asio::asio  )
+target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
-
-

@@ -387,17 +387,24 @@ class jCall : public Call
                 auto portInfo = aud_med->getPortInfo();
                 auto format   = portInfo.format;
                 logger.debug("Port info: %d", format.clockRate);
-
+                if (direction == jCall::INCOMING)
+                {
+                    logger.critical("AUDIO INCOMING");
+                    player.startTransmit(*aud_med);
+                }
                 aud_med->startTransmit(mediaPort);
             }
     }
 
     explicit jCall(Account &acc, int call_id = PJSUA_INVALID_ID) : Call(acc, call_id) {
+        player.createPlayer("default.wav", PJMEDIA_FILE_NO_LOOP);
+        
         whisperClient.connect("ws://localhost:8765");
         whisperClient.set_transcription_callback([this](const std::string &transcription) {
             logger.info("Transcription: %s", transcription);
         });
         mediaPort.vad.setVoiceSegmentCallback([this](const std::vector<MediaFrame> &frames) {
+            logger.info("VAD segment: %d", frames.size());
             whisperClient.send_audio(jVAD::mergeFrames(frames));
         });
         if (mediaPort.getPortId() == PJSUA_INVALID_ID)
@@ -414,7 +421,15 @@ class jCall : public Call
         }
     }
 
+    enum Direction
+    {
+        INCOMING,
+        OUTGOING,
+    } direction = OUTGOING;
+
   private:
+    AudioMediaPlayer player;
+
     WhisperClient whisperClient;
     jMediaPort    mediaPort;
     ::Logger     &logger = ::Logger::getInstance();
@@ -442,7 +457,8 @@ class jAccount : public Account
         CallInfo ci   = call->getInfo();
         logger.info("Incoming call from %s", ci.remoteUri);
         CallOpParam prm;
-        prm.statusCode = PJSIP_SC_OK;
+        prm.statusCode  = PJSIP_SC_OK;
+        call->direction = jCall::INCOMING;
         call->answer(prm);
     }
 
