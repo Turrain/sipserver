@@ -5,151 +5,153 @@
 #include <string>
 #include <thread>
 
-#include "chat_manager.h"
 #include "httplib.h"
 #include "jmanager.h"
 #include "json.hpp"
+#include "llm_manager.h"
+
+// TODO: In
 
 class PJSIPController {
- private:
-  Manager &m_sipManager;
-  httplib::Server m_server;
+private:
+    Manager &m_sipManager;
+    httplib::Server m_server;
 
- public:
-  PJSIPController(Manager &sipManager) : m_sipManager(sipManager) {
-    setupRoutes();
-  }
+public:
+    PJSIPController(Manager &sipManager) :
+        m_sipManager(sipManager)
+    {
+        setupRoutes();
+    }
 
-  void run(uint16_t port = 18080) {
-    std::cout << "Starting PJSIP REST API on port " << port << "..."
-              << std::endl;
-    m_server.listen("0.0.0.0", port);
-  }
+    void run(uint16_t port = 18080)
+    {
+        std::cout << "Starting PJSIP REST API on port " << port << "..."
+                  << std::endl;
+        m_server.listen("0.0.0.0", port);
+    }
 
- private:
-  void setupRoutes() {
-    // Accounts Add
-    m_server.Post("/accounts/add", [this](const httplib::Request &req,
-                                          httplib::Response &res) {
-      // Parse JSON
-      nlohmann::json x;
-      try {
-        x = nlohmann::json::parse(req.body);
-      } catch (...) {
-        res.status = 400;
-        res.set_content("Invalid JSON", "text/plain");
-        return;
-      }
+private:
+    void setupRoutes()
+    {
+        // Accounts Add
+        m_server.Post("/accounts/add", [this](const httplib::Request &req, httplib::Response &res) {
+            // Parse JSON
+            nlohmann::json x;
+            try {
+                x = nlohmann::json::parse(req.body);
+            } catch (...) {
+                res.status = 400;
+                res.set_content("Invalid JSON", "text/plain");
+                return;
+            }
 
-      if (!x.contains("accountId") || !x.contains("domain") ||
-          !x.contains("username") || !x.contains("password") ||
-          !x.contains("registrarUri")) {
-        res.status = 400;
-        res.set_content("Missing required fields", "text/plain");
-        return;
-      }
+            if (!x.contains("accountId") || !x.contains("domain") || !x.contains("username") || !x.contains("password") || !x.contains("registrarUri")) {
+                res.status = 400;
+                res.set_content("Missing required fields", "text/plain");
+                return;
+            }
 
-      std::string accountId = x["accountId"].get<std::string>();
-      std::string domain = x["domain"].get<std::string>();
-      std::string username = x["username"].get<std::string>();
-      std::string password = x["password"].get<std::string>();
-      std::string registrar = x["registrarUri"].get<std::string>();
+            std::string accountId = x["accountId"].get<std::string>();
+            std::string domain = x["domain"].get<std::string>();
+            std::string username = x["username"].get<std::string>();
+            std::string password = x["password"].get<std::string>();
+            std::string registrar = x["registrarUri"].get<std::string>();
 
-      // Initiate the action on Manager
-      m_sipManager.addAccount(accountId, domain, username, password, registrar);
+            // Initiate the action on Manager
+            m_sipManager.addAccount(accountId, domain, username, password, registrar);
 
-      // Block and wait for the manager to complete and set a status
-      // code/response Assuming the manager sets some flag or triggers
-      // completion For demo, we just loop until we hypothetically have a status
-      // set
-      while (res.status == 0) {
-        std::this_thread::yield();
-      }
-    });
+            // Block and wait for the manager to complete and set a status
+            // code/response Assuming the manager sets some flag or triggers
+            // completion For demo, we just loop until we hypothetically have a status
+            // set
+            while (res.status == 0) {
+                std::this_thread::yield();
+            }
+        });
 
-    // Make Call
-    m_server.Post("/calls/make",
-                  [this](const httplib::Request &req, httplib::Response &res) {
-                    nlohmann::json x;
-                    try {
-                      x = nlohmann::json::parse(req.body);
-                    } catch (...) {
-                      res.status = 400;
-                      res.set_content("Invalid JSON", "text/plain");
-                      return;
-                    }
+        // Make Call
+        m_server.Post("/calls/make",
+            [this](const httplib::Request &req, httplib::Response &res) {
+                nlohmann::json x;
+                try {
+                    x = nlohmann::json::parse(req.body);
+                } catch (...) {
+                    res.status = 400;
+                    res.set_content("Invalid JSON", "text/plain");
+                    return;
+                }
 
-                    if (!x.contains("accountId") || !x.contains("destUri")) {
-                      res.status = 400;
-                      res.set_content("Missing required fields", "text/plain");
-                      return;
-                    }
+                if (!x.contains("accountId") || !x.contains("destUri")) {
+                    res.status = 400;
+                    res.set_content("Missing required fields", "text/plain");
+                    return;
+                }
 
-                    std::string accountId = x["accountId"].get<std::string>();
-                    std::string destUri = x["destUri"].get<std::string>();
+                std::string accountId = x["accountId"].get<std::string>();
+                std::string destUri = x["destUri"].get<std::string>();
 
-                    m_sipManager.makeCall(accountId, destUri);
+                m_sipManager.makeCall(accountId, destUri);
 
-                    // Block until done
-                    while (res.status == 0) {
-                      std::this_thread::yield();
-                    }
-                  });
+                // Block until done
+                while (res.status == 0) {
+                    std::this_thread::yield();
+                }
+            });
 
-    // Hangup Call
-    m_server.Post("/calls/hangup",
-                  [this](const httplib::Request &req, httplib::Response &res) {
-                    nlohmann::json x;
-                    try {
-                      x = nlohmann::json::parse(req.body);
-                    } catch (...) {
-                      res.status = 400;
-                      res.set_content("Invalid JSON", "text/plain");
-                      return;
-                    }
+        // Hangup Call
+        m_server.Post("/calls/hangup",
+            [this](const httplib::Request &req, httplib::Response &res) {
+                nlohmann::json x;
+                try {
+                    x = nlohmann::json::parse(req.body);
+                } catch (...) {
+                    res.status = 400;
+                    res.set_content("Invalid JSON", "text/plain");
+                    return;
+                }
 
-                    if (!x.contains("callId")) {
-                      res.status = 400;
-                      res.set_content("Missing callId field", "text/plain");
-                      return;
-                    }
+                if (!x.contains("callId")) {
+                    res.status = 400;
+                    res.set_content("Missing callId field", "text/plain");
+                    return;
+                }
 
-                    int callId = x["callId"].get<int>();
-                    m_sipManager.hangupCall(callId);
+                int callId = x["callId"].get<int>();
+                m_sipManager.hangupCall(callId);
 
-                    // Block until done
-                    while (res.status == 0) {
-                      std::this_thread::yield();
-                    }
-                  });
+                // Block until done
+                while (res.status == 0) {
+                    std::this_thread::yield();
+                }
+            });
 
-    // Remove Account
-    m_server.Delete("/accounts/remove", [this](const httplib::Request &req,
-                                               httplib::Response &res) {
-      nlohmann::json x;
-      try {
-        x = nlohmann::json::parse(req.body);
-      } catch (...) {
-        res.status = 400;
-        res.set_content("Invalid JSON", "text/plain");
-        return;
-      }
+        // Remove Account
+        m_server.Delete("/accounts/remove", [this](const httplib::Request &req, httplib::Response &res) {
+            nlohmann::json x;
+            try {
+                x = nlohmann::json::parse(req.body);
+            } catch (...) {
+                res.status = 400;
+                res.set_content("Invalid JSON", "text/plain");
+                return;
+            }
 
-      if (!x.contains("accountId")) {
-        res.status = 400;
-        res.set_content("Missing accountId field", "text/plain");
-        return;
-      }
+            if (!x.contains("accountId")) {
+                res.status = 400;
+                res.set_content("Missing accountId field", "text/plain");
+                return;
+            }
 
-      std::string accountId = x["accountId"].get<std::string>();
-      m_sipManager.removeAccount(accountId);
+            std::string accountId = x["accountId"].get<std::string>();
+            m_sipManager.removeAccount(accountId);
 
-      // Block until done
-      while (res.status == 0) {
-        std::this_thread::yield();
-      }
-    });
-  }
+            // Block until done
+            while (res.status == 0) {
+                std::this_thread::yield();
+            }
+        });
+    }
 };
 std::string virtualAssistantInstruction =
     R"(Роль: Виртуальный оператор первой линии поддержки клиентов Береке банка
@@ -215,35 +217,34 @@ std::string virtualAssistantInstruction =
 ВАЖНО: ты ничего не придумываешь. Если в этой инструкции нет ответа на вопрос клиента, то соединяешь со специалистом:
 'Для решения вашего вопроса мне потребуется уточнить детали. Пожалуйста, оставайтесь на линии, я вас переведу на специалиста.')";
 
-int main() {
-  try {
-    // Replace with your Groq API key
-    const std::string api_key =
-        "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";
-    registerLLMClients();
-    std::unique_ptr<LLMClient> groqClient =
-        LLMClientFactory::instance().create("groq", {{"apiKey", api_key}});
-    GroqRequest groqReq;
+int main()
+{
+    try {
+        // Replace with your Groq API key
+        const std::string api_key = "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";
+        registerLLMClients();
+        std::unique_ptr<LLMClient> groqClient = LLMClientFactory::instance().create("groq", { { "apiKey", api_key } });
+        GroqRequest groqReq;
 
-    groqReq.messages = {{"system", "You are a helpful assistant."},
-                        {"user", "Tell me a joke."}};
-    groqReq.model = "gemma2-9b-it";
-    auto res = groqClient->generateResponse(groqReq);
-    GroqResponse* groqRes = dynamic_cast<GroqResponse*>(res.get());
-    std::cout << "Groq Response: " << groqRes->choices[0].message.content
-              << std::endl;
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
-  }
+        groqReq.messages = { { "system", "You are a helpful assistant." },
+            { "user", "Tell me a joke." } };
+        groqReq.model = "gemma2-9b-it";
+        auto res = groqClient->generateResponse(groqReq);
+        GroqResponse *groqRes = dynamic_cast<GroqResponse *>(res.get());
+        std::cout << "Groq Response: " << groqRes->choices[0].message.content
+                  << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 
-  try {
-    Manager sipManager;
-    PJSIPController apiController(sipManager);
-    apiController.run();
-  } catch (const std::exception &e) {
-    std::cerr << "Initialization Error: " << e.what() << std::endl;
-    return 1;
-  }
+    try {
+        Manager sipManager;
+        PJSIPController apiController(sipManager);
+        apiController.run();
+    } catch (const std::exception &e) {
+        std::cerr << "Initialization Error: " << e.what() << std::endl;
+        return 1;
+    }
 
-  return 0;
+    return 0;
 }
