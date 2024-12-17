@@ -1,0 +1,35 @@
+# .clang-format
+BasedOnStyle: Google
+
+# Customizations
+AccessModifierOffset: -2         # Indent access modifiers (e.g., public, private) less for clarity.
+AlignConsecutiveAssignments: true # Align assignments for better readability.
+AlignConsecutiveDeclarations: true # Align variable declarations for consistency.
+AlignTrailingComments: true       # Align trailing comments in columns.
+AllowShortFunctionsOnASingleLine: Inline # Keep short functions inline if they're concise.
+AllowShortBlocksOnASingleLine: Always # Allow short blocks (e.g., if statements) on a single line.
+AllowShortIfStatementsOnASingleLine: WithoutElse # Allow single-line 'if' without 'else'.
+BreakBeforeBraces: Custom          # Custom brace breaking style.
+BraceWrapping:
+  AfterClass: true                 # Place brace on a new line after class declarations.
+  AfterControlStatement: true      # Place brace on a new line after control statements (if, for, etc.).
+  AfterEnum: true                  # Place brace on a new line after enums.
+  AfterNamespace: true             # Place brace on a new line after namespace.
+  AfterStruct: true                # Place brace on a new line after struct.
+  SplitEmptyFunction: false        # Don't split empty functions over multiple lines.
+  SplitEmptyRecord: false          # Keep empty structs/classes on a single line.
+  SplitEmptyNamespace: false       # Keep empty namespaces on a single line.
+ColumnLimit: 100                   # Increase line length limit for better readability.
+ConstructorInitializerIndentWidth: 4 # Indent constructor initializer lists for clarity.
+ContinuationIndentWidth: 4         # Set indentation for continued lines.
+IncludeBlocks: Regroup             # Group includes for better organization.
+IndentCaseLabels: true             # Indent case labels in switch statements.
+IndentWidth: 4                     # Set indentation width.
+NamespaceIndentation: All          # Indent inside namespaces for consistency.
+PointerAlignment: Right            # Align pointers and references to the variable.
+SortIncludes: true                 # Sort includes alphabetically.
+SpaceBeforeParens: ControlStatements # Add space before parentheses in control statements.
+SpacesInParentheses: false         # No spaces inside parentheses.
+SpacesInContainerLiterals: false   # No spaces inside container literals.
+TabWidth: 4                        # Set tab width for alignment.
+UseTab: Never                      # Use spaces instead of tabs.
