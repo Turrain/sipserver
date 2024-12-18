@@ -1,0 +1,7 @@
+[submodule "STT_server"]
+    path = docker/STT_server
+    url = https://github.com/Turrain/STT_server.git
+
+[submodule "TTS_server"]
+    path = docker/TTS_server
+    url = https://github.com/Turrain/TTS_server.git

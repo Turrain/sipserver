@@ -8,12 +8,12 @@
 #include "httplib.h"
 #include "jmanager.h"
 #include "json.hpp"
-#include "llm_manager.h"
+
 
 // TODO: In
 
 class PJSIPController {
-private:
+private:\
     Manager &m_sipManager;
     httplib::Server m_server;
 
@@ -219,23 +219,24 @@ std::string virtualAssistantInstruction =
 
 int main()
 {
-    try {
-        // Replace with your Groq API key
-        const std::string api_key = "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";
-        registerLLMClients();
-        std::unique_ptr<LLMClient> groqClient = LLMClientFactory::instance().create("groq", { { "apiKey", api_key } });
-        GroqRequest groqReq;
+    // try {
+    //     // Replace with your Groq API key
+    //     const std::string api_key = "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";
+    //     registerLLMClients();
+    //     std::unique_ptr<LLMClient> groqClient = LLMClientFactory::instance().create("groq", { { "apiKey", api_key } });
+    
+    //     GroqRequest groqReq;
 
-        groqReq.messages = { { "system", "You are a helpful assistant." },
-            { "user", "Tell me a joke." } };
-        groqReq.model = "gemma2-9b-it";
-        auto res = groqClient->generateResponse(groqReq);
-        GroqResponse *groqRes = dynamic_cast<GroqResponse *>(res.get());
-        std::cout << "Groq Response: " << groqRes->choices[0].message.content
-                  << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
+    //     groqReq.messages = { { "system", "You are a helpful assistant." },
+    //         { "user", "Tell me a joke." } };
+    //     groqReq.model = "gemma2-9b-it";
+    //     auto res = groqClient->generateResponse(groqReq);
+    //     GroqResponse *groqRes = dynamic_cast<GroqResponse *>(res.get());
+    //     std::cout << "Groq Response: " << groqRes->choices[0].message.content
+    //               << std::endl;
+    // } catch (const std::exception &e) {
+    //     std::cerr << "Error: " << e.what() << std::endl;
+    // }
 
     try {
         Manager sipManager;

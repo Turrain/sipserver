@@ -67,6 +67,9 @@ public:
     struct Message {
         std::string role;
         std::string content;
+        Message() = default;
+        Message(const std::string &_role, const std::string &_content) :
+            role(_role), content(_content) { }
     };
     std::vector<Message>
         messages; // List of messages comprising the conversation
@@ -451,10 +454,7 @@ public:
         try {
             auto jsonResp = nlohmann::json::parse(res->body);
             auto response = std::make_unique<GroqResponse>();
-
-            // Deserialize JSON response into GroqResponse
             from_json(jsonResp, *response);
-
             return response;
         } catch (const std::exception &e) {
             std::cerr << "JSON Parsing Error: " << e.what() << std::endl;
