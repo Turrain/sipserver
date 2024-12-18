@@ -443,7 +443,6 @@ public:
         cli.enable_server_certificate_verification(true);
         cli.set_default_headers({ { "Authorization", "Bearer " + apiKey_ } });
         httplib::Headers headers = { { "Content-Type", "application/json" } };
-        std::cout << json_data.dump() << std::endl;
         auto res = cli.Post("/openai/v1/chat/completions", headers,
             json_data.dump(), "application/json");
         if (!res || res->status != 200) {

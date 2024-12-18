@@ -219,6 +219,7 @@ std::string virtualAssistantInstruction =
 
 int main()
 {
+    registerLLMClients();
     // try {
     //     // Replace with your Groq API key
     //     const std::string api_key = "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";

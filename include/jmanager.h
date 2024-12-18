@@ -21,12 +21,10 @@
 #include <thread>
 #include <unordered_map>
 
-#include "webrtcvad.h"
 #include "agent.h"
 #include "logger.h"
+#include "webrtcvad.h"
 using namespace pj;
-
-
 
 //----------------------------------------------------------------------
 // VAD class
@@ -175,16 +173,58 @@ public:
     jVAD vad;
     explicit jMediaPort() :
         AudioMediaPort() { }
-    void onFrameRequested(MediaFrame &frame) override
-    {
-        frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
+    void addToQueue(const std::vector<int16_t>& audioData) {
+        audioQueue.emplace(audioData);
     }
+   void onFrameRequested(MediaFrame &frame) override {
+    frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
+
+    if (audioQueue.empty() && pcmBufferIndex >= pcmBuffer.size()) {
+        frame.buf.clear();
+        frame.size = 0;
+        return;
+    }
+
+    // Calculate samples to copy (not bytes)
+    size_t samplesToCopy = std::min(frameSize / sizeof(int16_t), 
+                                   pcmBuffer.size() - pcmBufferIndex);
+    
+    // Prepare buffer for int16_t samples
+    std::vector<int16_t> tempBuffer(samplesToCopy);
+
+    if (pcmBufferIndex < pcmBuffer.size()) {
+        std::copy(pcmBuffer.begin() + pcmBufferIndex,
+                 pcmBuffer.begin() + pcmBufferIndex + samplesToCopy,
+                 tempBuffer.begin());
+        pcmBufferIndex += samplesToCopy;
+    }
+
+    if (pcmBufferIndex >= pcmBuffer.size() && !audioQueue.empty()) {
+        pcmBuffer = audioQueue.front();
+        audioQueue.pop();
+        pcmBufferIndex = 0;
+    }
+
+    // Convert to bytes for frame buffer
+    frame.buf.assign(
+        reinterpret_cast<const uint8_t*>(tempBuffer.data()),
+        reinterpret_cast<const uint8_t*>(tempBuffer.data() + tempBuffer.size())
+    );
+    frame.size = static_cast<unsigned>(tempBuffer.size() * sizeof(int16_t));
+}
+
     void onFrameReceived(MediaFrame &frame) override { vad.processFrame(frame); }
 
 private:
+    size_t frameSize = 320;
     ::Logger &logger = ::Logger::getInstance();
+    std::queue<std::vector<int16_t>> audioQueue;
+    std::vector<int16_t> pcmBuffer;                  // Current PCM buffer
+    size_t pcmBufferIndex = 0;                           // Read index in the current buffer
 };
 #pragma endregion MediaPort
+
+
 
 //----------------------------------------------------------------------
 // Call class
@@ -211,24 +251,31 @@ public:
                 auto format = portInfo.format;
                 logger.debug("Port info: %d", format.clockRate);
                 if (direction == jCall::INCOMING) {
-                    logger.critical("AUDIO INCOMING");
-                    player.startTransmit(*aud_med);
+                    logger.debug("AUDIO INCOMING");
+                    agent->sendText("Привет, я твой ассистент.");
+                    
                 }
                 aud_med->startTransmit(mediaPort);
+                mediaPort.startTransmit(*aud_med);
             }
     }
 
     explicit jCall(Account &acc, int call_id = PJSUA_INVALID_ID) :
         Call(acc, call_id)
     {
-        player.createPlayer("default.wav", PJMEDIA_FILE_NO_LOOP);
-        
-
+        agent = new AgentSIP();
         mediaPort.vad.setVoiceSegmentCallback(
             [this](const std::vector<MediaFrame> &frames) {
                 logger.info("VAD segment: %d", frames.size());
-                agent.sendAudio(jVAD::mergeFrames(frames));
+                agent->sendAudio(jVAD::mergeFrames(frames));
             });
+
+        agent->setAudioChunkCallback(
+            [this](const std::vector<int16_t> &audio_data) {
+                logger.info("Audio size: %zu", audio_data.size());
+                mediaPort.addToQueue(audio_data);
+            });
+        
         if (mediaPort.getPortId() == PJSUA_INVALID_ID) {
             auto mediaFormatAudio = MediaFormatAudio();
             mediaFormatAudio.type = PJMEDIA_TYPE_AUDIO;
@@ -249,8 +296,8 @@ public:
         = OUTGOING;
 
 private:
-    AudioMediaPlayer player;
-    AgentSIP agent;
+
+    AgentSIP* agent;
     jMediaPort mediaPort;
     ::Logger &logger = ::Logger::getInstance();
 };
