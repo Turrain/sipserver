@@ -36,7 +36,7 @@ public:
     using VoiceSegmentCallback = std::function<void(const std::vector<MediaFrame> &)>;
     using SilenceCallback = std::function<void()>;
     using VoiceFrameCallback = std::function<void(const MediaFrame &)>;
-
+    using SpeechStartedCallback = std::function<void()>;
 public:
     jVAD()
     {
@@ -69,6 +69,10 @@ public:
     {
         onVoiceFrame = std::move(callback);
     }
+     void setSpeechStartedCallback(SpeechStartedCallback callback)  // New setter
+    {
+        onSpeechStarted = std::move(callback);
+    }
     static std::vector<int16_t> mergeFrames(
         const std::vector<MediaFrame> &frames)
     {
@@ -95,6 +99,7 @@ private:
     VoiceSegmentCallback onVoiceSegment;
     SilenceCallback onSilence;
     VoiceFrameCallback onVoiceFrame;
+     SpeechStartedCallback onSpeechStarted;
 
     static constexpr size_t MAX_BUFFER_SIZE = 10000;
     static constexpr int PADDING_MS = 800;
@@ -115,7 +120,9 @@ private:
             if (num_voiced > VAD_RATIO * vadRingBuffer.size()) {
                 triggered = true;
                 voiceBuffer.clear();
-
+                if (onSpeechStarted) {
+                    onSpeechStarted();
+                }
                 // Add initial padding frames to voice buffer
                 for (const auto &[f, s]: vadRingBuffer) {
                     processVoicedFrame(f);
@@ -268,6 +275,11 @@ public:
             [this](const std::vector<MediaFrame> &frames) {
                 logger.info("VAD segment: %d", frames.size());
                 agent->sendAudio(jVAD::mergeFrames(frames));
+            });
+
+        mediaPort.vad.setSpeechStartedCallback(
+            [this]() {
+                logger.info("Speech started");
             });
 
         agent->setAudioChunkCallback(

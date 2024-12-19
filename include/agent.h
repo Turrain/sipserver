@@ -62,6 +62,7 @@ private:
                     audioCallback_(audio_data);
                 }
             });
+        
     }
 
     std::string generateText(const std::string &input)
@@ -85,6 +86,7 @@ private:
     std::vector<GroqRequest::Message> messages_ = { { "system", "You are a helpful assistant, make a short response for one sentence." } };
     const std::string model_;
     WhisperClient whisperClient_;
+    
     AuralisClient auralisClient_;
     AuralisClient::AudioChunkCallback audioCallback_;
     std::unique_ptr<LLMClient> groqClient_;

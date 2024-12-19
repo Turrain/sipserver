@@ -20,7 +20,22 @@ RUN apt-get update && \
         libcurl4-openssl-dev \
         libunbound-dev \
         uuid-dev \
-        git
+        git \
+        curl \
+        zip \
+        unzip \
+        tar \
+        pkg-config
+
+RUN git clone https://github.com/Microsoft/vcpkg.git /opt/vcpkg && \
+    /opt/vcpkg/bootstrap-vcpkg.sh && \
+    ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
+
+RUN vcpkg install websocketpp
+
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
+
 
 WORKDIR /app
 COPY . /app
@@ -28,7 +43,7 @@ COPY . /app
 RUN rm -rf build && \
     mkdir build && \
     cd build && \
-    cmake .. && \
+    cmake -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} .. && \
     make
 
 # Default command
