@@ -19,7 +19,30 @@ services:
       resources:
         limits:
           memory: 4G  #TODO: Adjust memory or remove that
-
+  stt:
+    build:
+      context: ./docker/STT_server
+      dockerfile: Dockerfile
+    ports:
+      - "8765:8765"
+    volumes:
+      - .:/app  
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+  tts:
+    build:
+      context: ./docker/TTS_server
+      dockerfile: Dockerfile
+    ports:
+      - "8766:8766"
+    volumes:
+      - .:/app  
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
 volumes:
   build-cache:
   vcpkg-cache:
