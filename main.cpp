@@ -10,10 +10,21 @@
 #include "json.hpp"
 
 
-// TODO: In
+//TODO: Update a docker files to use cache, or optimize build
+//TODO: Make a tests for the project
+//TODO: Rework architecture of project
+//TODO: Update a LLM Providers
+//TODO: Rework Logger
+//TODO: Implement a start speech callback, rework VAD
+//TODO: Rework TTS,STT, make a abstractions, fabrics.
+//TODO: Implement  CI/CD pipeline
+//TODO: Implement a WebUI
+//TODO: Implement a second backend server like endpoint for SIP server
+
+
 
 class PJSIPController {
-private:\
+private:
     Manager &m_sipManager;
     httplib::Server m_server;
 
@@ -28,7 +39,7 @@ public:
     {
         std::cout << "Starting PJSIP REST API on port " << port << "..."
                   << std::endl;
-        m_server.listen("0.0.0.0", port);
+        m_server.listen("127.0.0.1", port);
     }
 
 private:
