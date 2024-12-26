@@ -1,0 +1,25 @@
+{
+    "providers": {
+      "Ollama": {
+        "baseUrl": "http://localhost:11434"
+      },
+      "Groq": {
+        "apiKey": "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",
+        "baseUrl": "https://api.groq.com/openai/v1"
+      },
+      "OpenAI": {
+        "apiKey": "YOUR_OPENAI_API_KEY",
+        "baseUrl": "https://api.openai.com"
+      }
+    },
+    "agents": {
+        "agent1": {
+            "provider": "Ollama",
+            "model": "llama3.2:3b"
+        },
+        "agent2": {
+            "provider": "Groq",
+            "model": "gemma2-9b-it"
+        }
+    }
+  }

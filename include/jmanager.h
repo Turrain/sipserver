@@ -37,6 +37,7 @@ public:
     using SilenceCallback = std::function<void()>;
     using VoiceFrameCallback = std::function<void(const MediaFrame &)>;
     using SpeechStartedCallback = std::function<void()>;
+
 public:
     jVAD()
     {
@@ -69,7 +70,7 @@ public:
     {
         onVoiceFrame = std::move(callback);
     }
-     void setSpeechStartedCallback(SpeechStartedCallback callback)  // New setter
+    void setSpeechStartedCallback(SpeechStartedCallback callback) // New setter
     {
         onSpeechStarted = std::move(callback);
     }
@@ -89,7 +90,7 @@ public:
     }
 
 private:
-    ::Logger &logger = ::Logger::getInstance();
+
     WebRtcVad vad;
     std::mutex bufferMutex;
     std::deque<std::pair<MediaFrame, bool>> vadRingBuffer;
@@ -99,7 +100,7 @@ private:
     VoiceSegmentCallback onVoiceSegment;
     SilenceCallback onSilence;
     VoiceFrameCallback onVoiceFrame;
-     SpeechStartedCallback onSpeechStarted;
+    SpeechStartedCallback onSpeechStarted;
 
     static constexpr size_t MAX_BUFFER_SIZE = 10000;
     static constexpr int PADDING_MS = 800;
@@ -180,58 +181,63 @@ public:
     jVAD vad;
     explicit jMediaPort() :
         AudioMediaPort() { }
-    void addToQueue(const std::vector<int16_t>& audioData) {
+    void addToQueue(const std::vector<int16_t> &audioData)
+    {
         audioQueue.emplace(audioData);
     }
-   void onFrameRequested(MediaFrame &frame) override {
-    frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
+    void onFrameRequested(MediaFrame &frame) override
+    {
+        frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
 
-    if (audioQueue.empty() && pcmBufferIndex >= pcmBuffer.size()) {
-        frame.buf.clear();
-        frame.size = 0;
-        return;
+        if (audioQueue.empty() && pcmBufferIndex >= pcmBuffer.size()) {
+            frame.buf.clear();
+            frame.size = 0;
+            return;
+        }
+
+        // Calculate samples to copy (not bytes)
+        size_t samplesToCopy = std::min(frameSize / sizeof(int16_t),
+            pcmBuffer.size() - pcmBufferIndex);
+
+        // Prepare buffer for int16_t samples
+        std::vector<int16_t> tempBuffer(samplesToCopy);
+
+        if (pcmBufferIndex < pcmBuffer.size()) {
+            std::copy(pcmBuffer.begin() + pcmBufferIndex,
+                pcmBuffer.begin() + pcmBufferIndex + samplesToCopy,
+                tempBuffer.begin());
+            pcmBufferIndex += samplesToCopy;
+        }
+
+        if (pcmBufferIndex >= pcmBuffer.size() && !audioQueue.empty()) {
+            pcmBuffer = audioQueue.front();
+            audioQueue.pop();
+            pcmBufferIndex = 0;
+        }
+
+        // Convert to bytes for frame buffer
+        frame.buf.assign(
+            reinterpret_cast<const uint8_t *>(tempBuffer.data()),
+            reinterpret_cast<const uint8_t *>(tempBuffer.data() + tempBuffer.size()));
+        frame.size = static_cast<unsigned>(tempBuffer.size() * sizeof(int16_t));
     }
-
-    // Calculate samples to copy (not bytes)
-    size_t samplesToCopy = std::min(frameSize / sizeof(int16_t), 
-                                   pcmBuffer.size() - pcmBufferIndex);
-    
-    // Prepare buffer for int16_t samples
-    std::vector<int16_t> tempBuffer(samplesToCopy);
-
-    if (pcmBufferIndex < pcmBuffer.size()) {
-        std::copy(pcmBuffer.begin() + pcmBufferIndex,
-                 pcmBuffer.begin() + pcmBufferIndex + samplesToCopy,
-                 tempBuffer.begin());
-        pcmBufferIndex += samplesToCopy;
-    }
-
-    if (pcmBufferIndex >= pcmBuffer.size() && !audioQueue.empty()) {
-        pcmBuffer = audioQueue.front();
-        audioQueue.pop();
-        pcmBufferIndex = 0;
-    }
-
-    // Convert to bytes for frame buffer
-    frame.buf.assign(
-        reinterpret_cast<const uint8_t*>(tempBuffer.data()),
-        reinterpret_cast<const uint8_t*>(tempBuffer.data() + tempBuffer.size())
-    );
-    frame.size = static_cast<unsigned>(tempBuffer.size() * sizeof(int16_t));
-}
 
     void onFrameReceived(MediaFrame &frame) override { vad.processFrame(frame); }
 
+    void clearQueue()
+    {
+        std::queue<std::vector<int16_t>>().swap(audioQueue);
+        pcmBuffer.clear();
+        pcmBufferIndex = 0;
+    }
+
 private:
     size_t frameSize = 320;
-    ::Logger &logger = ::Logger::getInstance();
     std::queue<std::vector<int16_t>> audioQueue;
-    std::vector<int16_t> pcmBuffer;                  // Current PCM buffer
-    size_t pcmBufferIndex = 0;                           // Read index in the current buffer
+    std::vector<int16_t> pcmBuffer; // Current PCM buffer
+    size_t pcmBufferIndex = 0; // Read index in the current buffer
 };
 #pragma endregion MediaPort
-
-
 
 //----------------------------------------------------------------------
 // Call class
@@ -243,12 +249,12 @@ public:
     void onCallState(OnCallStateParam &prm) override
     {
         CallInfo ci = getInfo();
-        logger.info("onCallState: Call %d state: %d", ci.id, ci.lastStatusCode);
+        LOG_DEBUG("onCallState: Call %d state: %d", ci.id, ci.state);
     }
     void onCallMediaState(OnCallMediaStateParam &prm) override
     {
         CallInfo ci = getInfo();
-        logger.info("onCallMediaState: Call %d media state: %d", ci.id, ci.state);
+        LOG_DEBUG("onCallMediaState: Call %d media state: %d", ci.id, ci.state);
         for (int i = 0; i < ci.media.size(); i++)
             if (ci.media[i].status == PJSUA_CALL_MEDIA_ACTIVE && ci.media[i].type == PJMEDIA_TYPE_AUDIO && getMedia(i)) {
                 auto *aud_med = dynamic_cast<AudioMedia *>(getMedia(i));
@@ -256,11 +262,10 @@ public:
 
                 auto portInfo = aud_med->getPortInfo();
                 auto format = portInfo.format;
-                logger.debug("Port info: %d", format.clockRate);
                 if (direction == jCall::INCOMING) {
-                    logger.debug("AUDIO INCOMING");
+                    LOG_DEBUG("AUDIO INCOMING");
+            
                     agent->sendText("Привет, я твой ассистент.");
-                    
                 }
                 aud_med->startTransmit(mediaPort);
                 mediaPort.startTransmit(*aud_med);
@@ -273,21 +278,23 @@ public:
         agent = new AgentSIP();
         mediaPort.vad.setVoiceSegmentCallback(
             [this](const std::vector<MediaFrame> &frames) {
-                logger.info("VAD segment: %d", frames.size());
+                LOG_DEBUG("Voice segment");
                 agent->sendAudio(jVAD::mergeFrames(frames));
             });
 
         mediaPort.vad.setSpeechStartedCallback(
             [this]() {
-                logger.info("Speech started");
+                LOG_DEBUG("Speech started");
+           
+                mediaPort.clearQueue();
             });
 
         agent->setAudioChunkCallback(
             [this](const std::vector<int16_t> &audio_data) {
-                logger.info("Audio size: %zu", audio_data.size());
+      
                 mediaPort.addToQueue(audio_data);
             });
-        
+
         if (mediaPort.getPortId() == PJSUA_INVALID_ID) {
             auto mediaFormatAudio = MediaFormatAudio();
             mediaFormatAudio.type = PJMEDIA_TYPE_AUDIO;
@@ -308,10 +315,8 @@ public:
         = OUTGOING;
 
 private:
-
-    AgentSIP* agent;
+    AgentSIP *agent;
     jMediaPort mediaPort;
-    ::Logger &logger = ::Logger::getInstance();
 };
 #pragma endregion Call
 
@@ -331,14 +336,14 @@ public:
     void onRegState(OnRegStateParam &prm) override
     {
         AccountInfo ai = getInfo();
-        logger.info("Registration state: %d", ai.regIsActive);
-        logger.info("Registration status: %d", ai.regStatus);
+        LOG_DEBUG("Registration state: %d", ai.regIsActive);
+        LOG_DEBUG("Registration status: %d", ai.regStatus);
     }
     void onIncomingCall(OnIncomingCallParam &iprm) override
     {
         auto *call = new jCall(*this, iprm.callId);
         CallInfo ci = call->getInfo();
-        logger.info("Incoming call from %s", ci.remoteUri);
+        LOG_DEBUG("Incoming call from %s", ci.remoteUri);
         CallOpParam prm;
         prm.statusCode = PJSIP_SC_OK;
         call->direction = jCall::INCOMING;
@@ -349,7 +354,6 @@ public:
 
 private:
     onRegStateCallback regStateCallback = nullptr;
-    ::Logger &logger = ::Logger::getInstance();
 };
 #pragma endregion Account
 
@@ -360,7 +364,6 @@ private:
 #pragma region Manager
 class Manager {
 private:
-    ::Logger &logger = ::Logger::getInstance();
 
 public:
     Manager()
@@ -370,7 +373,7 @@ public:
             m_endpoint.libCreate();
 
             pj::EpConfig epConfig;
-            epConfig.logConfig.level = 2;
+            epConfig.logConfig.level = 4;
             m_endpoint.libInit(epConfig);
 
             // Create UDP transport
@@ -383,7 +386,7 @@ public:
 
             // Start library
             m_endpoint.libStart();
-            logger.info("PJSIP Endpoint initialized successfully");
+            LOG_DEBUG("PJSIP Endpoint started");
             // Start worker thread
             m_workerThread = std::make_unique<std::thread>(&Manager::workerThreadMain, this);
         } catch (pj::Error &err) {

@@ -8,20 +8,18 @@
 #include "httplib.h"
 #include "jmanager.h"
 #include "json.hpp"
+#include "llm_provider.h"
 
-
-//TODO: Update a docker files to use cache, or optimize build
-//TODO: Make a tests for the project
-//TODO: Rework architecture of project
-//TODO: Update a LLM Providers
-//TODO: Rework Logger
-//TODO: Implement a start speech callback, rework VAD
-//TODO: Rework TTS,STT, make a abstractions, fabrics.
-//TODO: Implement  CI/CD pipeline
-//TODO: Implement a WebUI
-//TODO: Implement a second backend server like endpoint for SIP server
-
-
+// TODO: Update a docker files to use cache, or optimize build
+// TODO: Make a tests for the project
+// TODO: Rework architecture of project
+// TODO: Update a LLM Providers
+// TODO: Rework Logger
+// TODO: Implement a start speech callback, rework VAD | 50%
+// TODO: Rework TTS,STT, make a abstractions, fabrics.
+// TODO: Implement  CI/CD pipeline
+// TODO: Implement a WebUI
+// TODO: Implement a second backend server like endpoint for SIP server
 
 class PJSIPController {
 private:
@@ -164,11 +162,53 @@ private:
         });
     }
 };
-
+ProviderManager *ProviderManager::instance = nullptr;
+std::mutex ProviderManager::mutex;
+std::mutex Logger::logMutex;
 int main()
 {
     registerLLMClients();
- 
+    ProviderManager *providerManager = ProviderManager::getInstance();
+    providerManager->registerProviderFactory("Ollama", std::make_unique<OllamaProviderFactory>());
+    providerManager->registerProviderFactory("Groq", std::make_unique<GroqProviderFactory>());
+
+    // Load configuration from file
+    std::ifstream f("config.json");
+    json configData = json::parse(f);
+
+    // Load provider configurations
+    providerManager->loadConfig(configData); // Pass json object to loadConfig
+
+    // Create AgentManager and register agent factory
+    auto agentFactory = std::make_unique<ConcreteAgentFactory>();
+    AgentManager agentManager(std::move(agentFactory));
+
+    // Load agent configurations
+    agentManager.loadConfig("config.json");
+
+    json newGroqConfig;
+    newGroqConfig["model"] = "gemma2-9b-it"; // Example: change to a different model
+    agentManager.changeProvider("agent1", "Groq", newGroqConfig);
+    agentManager.saveConfig("config.json");
+
+    // Get agent1 and test
+    Agent *agent1 = agentManager.getAgent("agent1");
+    if (agent1) {
+        agent1->think("What is the capital of France?");
+    }
+
+    // Change provider for agent1 back to Ollama and update model
+    json newOllamaConfig;
+    newOllamaConfig["model"] = "llama3.2:3b"; // Example: change to a different model
+    agentManager.changeProvider("agent1", "Ollama", newOllamaConfig);
+    agentManager.saveConfig("config.json");
+
+    // Get agent1 and test again
+    agent1 = agentManager.getAgent("agent1");
+    if (agent1) {
+        agent1->think("What is the capital of Germany?");
+    }
+
     try {
         Manager sipManager;
         PJSIPController apiController(sipManager);

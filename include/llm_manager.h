@@ -30,32 +30,6 @@ using TokenCallback = std::function<bool(const std::string &token)>;
 //
 // /api/generate: single prompt -> single completion
 // /api/chat: conversation with a message array similar to OpenAI chat.
-class OllamaRequest: public LLMRequest {
-public:
-    std::string model = "gemma2:9b";
-    double temperature = 0.7;
-    int maxTokens = 256;
-    bool stream = false;
-};
-
-class OllamaGenerateRequest: public OllamaRequest {
-public:
-    std::string prompt;
-};
-
-class OllamaChatRequest: public OllamaRequest {
-public:
-    struct Message {
-        std::string role; // "system", "user", "assistant"
-        std::string content;
-    };
-    std::vector<Message> messages;
-};
-
-class OllamaResponse: public LLMResponse {
-public:
-    std::string generatedText;
-};
 
 //------------------------------------------------------------------------------
 // Groq-specific request/response
@@ -271,158 +245,6 @@ public:
 // Ollama Client Implementation (supports /api/generate and /api/chat)
 //------------------------------------------------------------------------------
 
-class OllamaLLMClient: public LLMClient {
-public:
-    OllamaLLMClient() = default;
-
-    std::unique_ptr<LLMResponse> generateResponse(
-        const LLMRequest &request) override
-    {
-        // Decide endpoint by request type
-        if (auto genReq = dynamic_cast<const OllamaGenerateRequest *>(&request)) {
-            return generateResponseGenerate(*genReq);
-        } else if (auto chatReq = dynamic_cast<const OllamaChatRequest *>(&request)) {
-            return generateResponseChat(*chatReq);
-        } else {
-            throw std::runtime_error("Ollama request type not supported");
-        }
-    }
-
-    std::unique_ptr<LLMResponse> generateResponseStream(
-        const LLMRequest &request, TokenCallback tokenCallback) override
-    {
-        // Decide endpoint by request type
-        if (auto genReq = dynamic_cast<const OllamaGenerateRequest *>(&request)) {
-            return generateResponseGenerateStream(*genReq, tokenCallback);
-        } else if (auto chatReq = dynamic_cast<const OllamaChatRequest *>(&request)) {
-            return generateResponseChatStream(*chatReq, tokenCallback);
-        } else {
-            throw std::runtime_error(
-                "Ollama request type not supported for streaming");
-        }
-    }
-
-private:
-    // /api/generate (single prompt)
-    std::unique_ptr<LLMResponse> generateResponseGenerate(
-        const OllamaGenerateRequest &req)
-    {
-        nlohmann::json body;
-        body["model"] = req.model;
-        body["prompt"] = req.prompt;
-        body["temperature"] = req.temperature;
-        body["max_tokens"] = req.maxTokens;
-
-        httplib::Client cli("localhost", 11437);
-        auto res = cli.Post("/api/generate", body.dump(), "application/json");
-        if (!res || res->status != 200) {
-            throw std::runtime_error("Ollama generate request failed");
-        }
-
-        auto jsonResp = nlohmann::json::parse(res->body);
-        auto response = std::make_unique<OllamaResponse>();
-        response->generatedText = jsonResp.value("completion", "");
-        return response;
-    }
-
-    std::unique_ptr<LLMResponse> generateResponseGenerateStream(
-        const OllamaGenerateRequest &req, TokenCallback tokenCallback)
-    {
-        nlohmann::json body;
-        body["model"] = req.model;
-        body["prompt"] = req.prompt;
-        body["temperature"] = req.temperature;
-        body["max_tokens"] = req.maxTokens;
-
-        httplib::Client cli("localhost", 11437);
-        std::string finalText;
-        // auto res = cli.Post(
-        //     "/api/generate",
-        //     body.dump(),
-        //     "application/json",
-        //     [&](const char* data, size_t length) {
-        //         std::string chunk(data, length);
-        //         auto j = nlohmann::json::parse(chunk, nullptr, false);
-        //         if (!j.is_discarded() && j.contains("token")) {
-        //             std::string token = j["token"].get<std::string>();
-        //             finalText += token;
-        //             if (!tokenCallback(token)) {
-        //                 return false;
-        //             }
-        //         }
-        //         return true;
-        //     }
-        // );
-
-        auto response = std::make_unique<OllamaResponse>();
-        response->generatedText = finalText;
-        return response;
-    }
-
-    // /api/chat (conversation with messages)
-    std::unique_ptr<LLMResponse> generateResponseChat(
-        const OllamaChatRequest &req)
-    {
-        nlohmann::json body;
-        body["model"] = req.model;
-        body["temperature"] = req.temperature;
-        body["max_tokens"] = req.maxTokens;
-        for (auto &msg: req.messages) {
-            body["messages"].push_back(
-                { { "role", msg.role }, { "content", msg.content } });
-        }
-
-        httplib::Client cli("localhost", 11437);
-        auto res = cli.Post("/api/chat", body.dump(), "application/json");
-        if (!res || res->status != 200) {
-            throw std::runtime_error("Ollama chat request failed");
-        }
-
-        auto jsonResp = nlohmann::json::parse(res->body);
-        auto response = std::make_unique<OllamaResponse>();
-        response->generatedText = jsonResp.value("completion", "");
-        return response;
-    }
-
-    std::unique_ptr<LLMResponse> generateResponseChatStream(
-        const OllamaChatRequest &req, TokenCallback tokenCallback)
-    {
-        nlohmann::json body;
-        body["model"] = req.model;
-        body["temperature"] = req.temperature;
-        body["max_tokens"] = req.maxTokens;
-        for (auto &msg: req.messages) {
-            body["messages"].push_back(
-                { { "role", msg.role }, { "content", msg.content } });
-        }
-
-        httplib::Client cli("localhost", 11437);
-        std::string finalText;
-
-        // auto res = cli.Post(
-        //     "/api/chat",
-        //     body.dump(),
-        //     "application/json",
-        //     [&](const char* data, size_t length) {
-        //         std::string chunk(data, length);
-        //         auto j = nlohmann::json::parse(chunk, nullptr, false);
-        //         if (!j.is_discarded() && j.contains("token")) {
-        //             std::string token = j["token"].get<std::string>();
-        //             finalText += token;
-        //             if (!tokenCallback(token)) {
-        //                 return false;
-        //             }
-        //         }
-        //         return true;
-        //     }
-        // );
-
-        auto response = std::make_unique<OllamaResponse>();
-        response->generatedText = finalText;
-        return response;
-    }
-};
-
 //------------------------------------------------------------------------------
 // Groq Client
 //------------------------------------------------------------------------------
@@ -504,11 +326,7 @@ private:
 //------------------------------------------------------------------------------
 inline void registerLLMClients()
 {
-    LLMClientFactory::instance().registerClient(
-        "ollama", [](const std::unordered_map<std::string, std::string> &) {
-            return std::make_unique<OllamaLLMClient>();
-        });
-
+   
     LLMClientFactory::instance().registerClient(
         "groq", [](const std::unordered_map<std::string, std::string> &cfg) {
             std::string apiKey = "";

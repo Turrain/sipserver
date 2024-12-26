@@ -89,6 +89,7 @@
         "__split_buffer": "cpp",
         "__tree": "cpp",
         "queue": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "__node_handle": "cpp"
     }
 }

@@ -49,7 +49,7 @@ private:
     {
         whisperClient_.set_transcription_callback(
             [this](const std::string &transcription) {
-                logger.info("Transcription: %s", transcription.c_str());
+                LOG_DEBUG("Transcription: %s", transcription.c_str());
                 messages_.emplace_back("user", transcription);
                 auto response = generateText(transcription);
                 sendText(response);
@@ -57,12 +57,11 @@ private:
 
         auralisClient_.set_audio_callback(
             [this](const std::vector<int16_t> &audio_data) {
-                logger.info("Audio size: %zu", audio_data.size());
+                LOG_DEBUG("Audio size: %zu", audio_data.size());
                 if (audioCallback_) {
                     audioCallback_(audio_data);
                 }
             });
-        
     }
 
     std::string generateText(const std::string &input)
@@ -78,11 +77,10 @@ private:
         }
 
         const auto &choice = groqResponse->choices.front();
-        logger.info("Groq Response: %s", choice.message.content.c_str());
+        LOG_DEBUG("Groq Response: %s", choice.message.content.c_str());
         messages_.emplace_back(choice.message.role, choice.message.content);
         return choice.message.content;
     }
-    ::Logger &logger = ::Logger::getInstance();
     std::vector<GroqRequest::Message> messages_ = { { "system", "You are a helpful assistant, make a short response for one sentence." } };
     const std::string model_;
     WhisperClient whisperClient_;
