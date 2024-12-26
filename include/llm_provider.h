@@ -45,12 +45,19 @@ public:
 
 class Agent {
 public:
+    std::string id;
+    json config;
+    Agent(const std::string &agent_id, const json &cfg) :
+        id(agent_id), config(cfg) { }
+
     virtual ~Agent() = default;
     virtual void think(const std::string &message) = 0;
     virtual void listen(const std::vector<int16_t> &audio_data) = 0;
     virtual void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) = 0;
-    virtual void configure(const json &config) {
-        // Default implementation does nothing, or handles common config
+    virtual void configure(const json &newConfig)
+    {
+        config.merge_patch(newConfig); // Use JSON merge patch to update
+        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
     }
 };
 
@@ -131,7 +138,6 @@ public:
         return j;
     }
 };
-
 
 class OllamaProvider: public Provider {
 private:
@@ -385,9 +391,33 @@ public:
     }
 };
 
+class RequestFactory {
+public:
+    virtual ~RequestFactory() = default;
+    virtual std::unique_ptr<Request> createRequest(const std::string &message) = 0;
+};
+
+// Concrete Request Factories
+class OllamaRequestFactory: public RequestFactory {
+public:
+    std::unique_ptr<Request> createRequest(const std::string &message) override
+    {
+        return std::make_unique<OllamaRequest>(message, ""); // Model will be set later
+    }
+};
+
+class GroqRequestFactory: public RequestFactory {
+public:
+    std::unique_ptr<Request> createRequest(const std::string &message) override
+    {
+        return std::make_unique<GroqRequest2>(message);
+    }
+};
+
 class ProviderManager {
 private:
     std::map<std::string, std::unique_ptr<Provider>> providers;
+    std::map<std::string, std::unique_ptr<RequestFactory>> requestFactories;
     std::map<std::string, std::unique_ptr<ProviderFactory>> providerFactories;
     static ProviderManager *instance;
     static std::mutex mutex;
@@ -397,6 +427,8 @@ private:
 
         registerProviderFactory("Ollama", std::make_unique<OllamaProviderFactory>());
         registerProviderFactory("Groq", std::make_unique<GroqProviderFactory>());
+        registerRequestFactory("Ollama", std::make_unique<OllamaRequestFactory>());
+        registerRequestFactory("Groq", std::make_unique<GroqRequestFactory>());
     }
 
 public:
@@ -412,6 +444,10 @@ public:
     void registerProviderFactory(const std::string &name, std::unique_ptr<ProviderFactory> factory)
     {
         providerFactories[name] = std::move(factory);
+    }
+    void registerRequestFactory(const std::string &name, std::unique_ptr<RequestFactory> factory)
+    {
+        requestFactories[name] = std::move(factory);
     }
 
     void loadConfig(const json &configData)
@@ -440,250 +476,129 @@ public:
         }
     }
 
+    bool hasProvider(const std::string &providerName) const
+    {
+        return providers.count(providerName) > 0;
+    }
+    std::unique_ptr<Request> createRequest(const std::string &providerName, const std::string &message)
+    {
+        if (requestFactories.count(providerName)) {
+            return requestFactories[providerName]->createRequest(message);
+        }
+        LOG_ERROR("No request factory found for provider: %s", providerName.c_str());
+        return nullptr;
+    }
     ProviderManager(const ProviderManager &) = delete;
     ProviderManager &operator=(const ProviderManager &) = delete;
 };
-class OllamaAgent: public Agent {
-private:
-    std::unique_ptr<OllamaProvider> provider;
-    std::string model;
 
+class BaseAgent: public Agent {
 public:
-    OllamaAgent(std::unique_ptr<OllamaProvider> provider, const std::string &model) :
-        provider(std::move(provider)), model(model) { }
+    BaseAgent(const std::string &agent_id, const json &cfg) :
+        Agent(agent_id, cfg) { }
 
     void think(const std::string &message) override
     {
+        LOG_DEBUG("BaseAgent %s thinks: %s", id.c_str(), message.c_str());
 
-        auto ollamaRequest = std::make_unique<OllamaRequest>(message, model);
+        // Get the provider name from the agent's configuration
+        std::string providerName = config.value("provider", "");
 
-        std::unique_ptr<Request> request = std::move(ollamaRequest);
-
-        auto response = provider->handleRequest(request);
-
-        if (response) {
-            std::cout << "Ollama Agent Response: " << response->toString() << std::endl;
-        }
-    }
-
-    void listen(const std::vector<int16_t> &audio_data) override
-    {
-
-        std::cout << "Ollama Agent: Listening to audio data (not implemented)" << std::endl;
-    }
-
-    void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) override
-    {
-
-        std::cout << "Ollama Agent: Speaking (not implemented)" << std::endl;
-    }
-    void setModel(const std::string &newModel)
-    {
-        model = newModel;
-        std::cout << "Ollama Agent: Model updated to " << model << std::endl;
-    }
-     void configure(const json &config) override {
-        if (config.contains("model")) {
-            model = config["model"];
-            std::cout << "Ollama Agent: Model updated to " << model << std::endl;
-        }
-    }
-};
-
-class GroqAgent: public Agent {
-private:
-    std::unique_ptr<GroqProvider> provider;
-    std::string model;
-
-public:
-    GroqAgent(std::unique_ptr<GroqProvider> provider, const std::string &model) :
-        provider(std::move(provider)), model(model) { }
-
-      void think(const std::string &message) override
-    {
-
-        auto groqRequest = std::make_unique<GroqRequest2>(message);
-        groqRequest->model = model;
-
-        std::unique_ptr<Request> request = std::move(groqRequest);
-
-        auto response = provider->handleRequest(request);
-
-        if (response) {
-            std::cout << "Groq Agent Response: " << response->toString() << std::endl;
-        }
-    }
-    void listen(const std::vector<int16_t> &audio_data) override
-    {
-        std::cout << "Groq Agent: Listening to audio data (not implemented)" << std::endl;
-    }
-
-    void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) override
-    {
-        std::cout << "Groq Agent: Speaking (not implemented)" << std::endl;
-    }
-    void setModel(const std::string &newModel)
-    {
-        model = newModel;
-        std::cout << "Groq Agent: Model updated to " << model << std::endl;
-    }
-     void configure(const json &config) override {
-        if (config.contains("model")) {
-             model = config["model"];
-            std::cout << "Groq Agent: Model updated to " << model << std::endl;
-        }
-    }
-};
-
-class AgentFactory {
-public:
-    virtual ~AgentFactory() = default;
-    virtual std::unique_ptr<Agent> createAgent(const std::string &providerName, const json &config) = 0;
-};
-class ConcreteAgentFactory: public AgentFactory {
-public:
-    std::unique_ptr<Agent> createAgent(const std::string &providerName, const json &config) override
-    {
-        auto providerManager = ProviderManager::getInstance();
-        if (providerName == "Ollama") {
-            auto provider = std::make_unique<OllamaProvider>();
-
-            provider->configure(config);
-            std::string model = config.value("model", "mistral:latest");
-            return std::make_unique<OllamaAgent>(std::move(provider), model); 
-        } else if (providerName == "Groq") {
-            auto provider = std::make_unique<GroqProvider>();
-
-            provider->configure(config);
-            std::string model = config.value("model", "llama2-70b-4096");
-            return std::make_unique<GroqAgent>(std::move(provider), model);
-        }
-
-        return nullptr;
-    }
-};
-
-
-class AgentManager {
-private:
-    std::map<std::string, std::unique_ptr<Agent>> agents;
-    std::unique_ptr<AgentFactory> agentFactory;
-    json config;
-
-    void configureAgent(const std::string &agentName, const json &agentConfig)
-    {
-        if (agents.count(agentName)) {
-            // Agent already exists, reconfigure
-            if (agentConfig.contains("provider")) {
-                std::string providerName = agentConfig["provider"];
-                LOG_DEBUG("Reconfiguring agent '%s' with provider '%s'", agentName.c_str(), providerName.c_str());
-                agents[agentName]->configure(agentConfig);
-                
-                
-            } else {
-                LOG_WARNING("Missing 'provider' field for agent '%s' during reconfiguration.", agentName.c_str());
-            }
-        } else {
-            // Agent does not exist, create
-            if (!agentConfig.contains("provider")) {
-                LOG_ERROR("Missing 'provider' field for agent '%s' in config.", agentName.c_str());
-                return;
-            }
-            std::string providerName = agentConfig["provider"];
-
-            auto providerConfig = config.value("providers", json::object()).value(providerName, json::object());
-
-            json mergedConfig = providerConfig;
-            for (auto &el : agentConfig.items()) {
-                if (el.key() != "provider") {
-                    mergedConfig[el.key()] = el.value();
-                }
-            }
-
-            auto agent = agentFactory->createAgent(providerName, mergedConfig);
-            if (agent) {
-                agents[agentName] = std::move(agent);
-                 LOG_INFO("Created and configured agent: %s", agentName.c_str());
-            }
-        }
-    }
-
-    void changeAgentProvider(const std::string& agentName, const std::string& newProviderName, const json& newProviderConfig) {
-        if (!agents.count(agentName)) {
-            LOG_ERROR("Agent '%s' not found.", agentName.c_str());
+        if (providerName.empty()) {
+            LOG_ERROR("Agent %s does not have a provider specified in its configuration.", id.c_str());
             return;
         }
 
-        LOG_DEBUG("Changing provider for agent '%s' to '%s'", agentName.c_str(), newProviderName.c_str());
-        
-        json agentConfig = config["agents"][agentName];
-        agentConfig["provider"] = newProviderName; 
-        json mergedConfig = config.value("providers", json::object()).value(newProviderName, json::object());
-        for (auto &el : agentConfig.items()) {
-             if (el.key() != "provider") {
-                 mergedConfig[el.key()] = el.value();
-             }
-         }
-        
-        for (const auto& [key, value] : newProviderConfig.items()) {
-             mergedConfig[key] = value;
-         }
-       
-        agents.erase(agentName);
+        // Check if the provider is available in the ProviderManager
+        if (!ProviderManager::getInstance()->hasProvider(providerName)) {
+            LOG_ERROR("Provider '%s' specified for agent %s is not available.", providerName.c_str(), id.c_str());
+            return;
+        }
 
-        
-        auto newAgent = agentFactory->createAgent(newProviderName, mergedConfig);
-        if (newAgent) {
-            agents[agentName] = std::move(newAgent);
-           
-            config["agents"][agentName] = agentConfig;
-             LOG_INFO("Successfully changed provider for agent '%s' to '%s'", agentName.c_str(), newProviderName.c_str());
+        // Use ProviderManager to create the request
+        std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, message);
+
+        if (!request) {
+            LOG_ERROR("Failed to create a request for provider: %s", providerName.c_str());
+            return;
+        }
+
+        // Apply provider-specific configurations from the agent's config
+        if (config.contains(providerName)) {
+            request->fromJson(config[providerName]);
+        }
+      
+
+        // Process the request using the ProviderManager
+        auto response = ProviderManager::getInstance()->processRequest(request);
+
+        if (response) {
+            LOG_INFO("Agent %s received response: %s", id.c_str(), response->toString().c_str());
         } else {
-            LOG_ERROR("Failed to create agent with provider '%s'.", newProviderName.c_str());
+            LOG_ERROR("Agent %s did not receive a response.", id.c_str());
         }
     }
 
+    void listen(const std::vector<int16_t> &audio_data) override
+    {
+        LOG_DEBUG("BaseAgent %s listens to audio data", id.c_str());
+    }
+
+    void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) override
+    {
+        LOG_DEBUG("BaseAgent %s speaks", id.c_str());
+    }
+
+    void configure(const json &newConfig) override
+    {
+        config.merge_patch(newConfig);
+        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
+    }
+};
+class AgentManager {
 public:
-    AgentManager(std::unique_ptr<AgentFactory> agentFactory) :
-        agentFactory(std::move(agentFactory)) { }
-
-    void loadConfig(const std::string &configFile)
+    std::shared_ptr<Agent> createAgent(const std::string &id,
+                                       const std::string &type,
+                                       const json &cfg)
     {
-        std::ifstream f(configFile);
-        config = json::parse(f);
-        LOG_INFO("Loading configuration from: %s", configFile.c_str());
+        std::lock_guard<std::mutex> lock(mutex_);
 
-        if (config.contains("agents") && config["agents"].is_object()) {
-            for (auto &[agentName, agentConfig]: config["agents"].items()) {
-                configureAgent(agentName, agentConfig);
-            }
+        if (agents_.find(id) != agents_.end()) {
+            // Return existing if found; or throw an error if you want to restrict duplicates
+            return agents_[id];
         }
-    }
 
-    void reconfigureAgent(const std::string &agentName, const json &agentConfig)
-    {
-        configureAgent(agentName, agentConfig);
-    }
-
-    
-    void changeProvider(const std::string& agentName, const std::string& newProviderName, const json& newProviderConfig) {
-        changeAgentProvider(agentName, newProviderName, newProviderConfig);
-    }
-
-    Agent *getAgent(const std::string &agentName)
-    {
-        if (agents.count(agentName)) {
-            return agents[agentName].get();
+        std::shared_ptr<Agent> agentPtr;
+        if (type == "BaseAgent") {
+            agentPtr = std::make_shared<BaseAgent>(id, cfg);
         } else {
-            LOG_ERROR("Agent '%s' not found.", agentName.c_str());
-            return nullptr;
+            // Default
+            agentPtr = std::make_shared<BaseAgent>(id, cfg);
         }
+        agents_[id] = agentPtr;
+        return agentPtr;
     }
-    
-    void saveConfig(const std::string& configFile) {
-        std::ofstream f(configFile);
-        f << config.dump(4); 
-        f.close();
-        LOG_INFO("Configuration saved to: %s", configFile.c_str());
+
+    std::shared_ptr<Agent> getAgent(const std::string &id)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (agents_.find(id) != agents_.end()) {
+            return agents_[id];
+        }
+        return nullptr;
     }
+
+    // Method to update an agent's configuration
+    bool updateAgentConfig(const std::string &agentId, const json &newConfig) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (agents_.find(agentId) != agents_.end()) {
+            agents_[agentId]->configure(newConfig);
+            return true;
+        }
+        return false;
+    }
+
+private:
+    std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;
+    std::mutex mutex_;
 };
