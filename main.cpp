@@ -3,6 +3,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.h"
 #include "manager.h"
 #include "request_factory.h"

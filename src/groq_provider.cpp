@@ -13,7 +13,7 @@ std::string GroqProvider::getName() const { return "Groq"; }
 void GroqProvider::configure(const json &config)
 {
     apiKey = config.value("apiKey", "");
-    baseUrl = config.value("baseUrl", "https://api.groq.com/openai/v1");
+    baseUrl = config.value("baseUrl", "api.groq.com");
     LOG_INFO("GroqProvider configured with baseUrl: %s", baseUrl.c_str());
 }
 
@@ -28,8 +28,8 @@ std::unique_ptr<Response> GroqProvider::handleRequest(const std::unique_ptr<Requ
         { "Content-Type", "application/json" },
         { "Authorization", "Bearer " + apiKey }
     };
-
-    auto res = cli.Post("/openai/v1/chat/completions", headers, groqRequest->toJson().dump(), "application/json");
+    auto json_dump = groqRequest->toJson().dump();
+    auto res = cli.Post("/openai/v1/chat/completions", headers, json_dump, "application/json");
     if (res) {
         if (res->status == 200) {
             LOG_DEBUG("Groq Response: %s", res->body.c_str());
@@ -81,11 +81,9 @@ std::unique_ptr<Provider> GroqProviderFactory::createProvider()
 
 std::string GroqRequest2::getProviderName() const { return "Groq"; }
 
-GroqRequest2::GroqRequest2() = default;
-
-GroqRequest2::GroqRequest2(const std::string &message)
+GroqRequest2::GroqRequest2(Messages messages)
 {
-    messages.push_back({ { "role", "user" }, { "content", message } });
+    this->messages = messages;
 }
 
 json GroqRequest2::toJson() const
@@ -106,7 +104,7 @@ json GroqRequest2::toJson() const
 void GroqRequest2::fromJson(const json &j)
 {
     if (j.contains("messages")) {
-        messages = j["messages"].get<std::vector<std::map<std::string, std::string>>>();
+        messages = j["messages"].get<Messages>();
     }
     if (j.contains("temperature")) {
         temperature = j["temperature"];

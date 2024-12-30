@@ -1,15 +1,17 @@
 #pragma once
 
+#include "provider.h"
+#include "request.h"
+#include "request_factory.h"
 #include <json.hpp>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include "provider.h"
-#include "request.h"
-#include "request_factory.h"
 
 using json = nlohmann::json;
+
+
 
 class ProviderManager {
 private:
@@ -28,8 +30,8 @@ public:
     void loadConfig(const json &configData);
     std::unique_ptr<Response> processRequest(const std::unique_ptr<Request> &request);
     bool hasProvider(const std::string &providerName) const;
-    std::unique_ptr<Request> createRequest(const std::string &providerName, const std::string &message);
-
-    ProviderManager(const ProviderManager &) = delete;
+    std::unique_ptr<Request> createRequest(const std::string &providerName, Messages messages);
+        ProviderManager(const ProviderManager &)
+        = delete;
     ProviderManager &operator=(const ProviderManager &) = delete;
 };

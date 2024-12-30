@@ -1,6 +1,7 @@
 #include "provider_manager.h"
 #include "ollama_provider.h"
 #include "groq_provider.h"
+#include "request.h"
 #include "request_factory.h"
 #include "logger.h"
 #include <iostream>
@@ -66,7 +67,7 @@ bool ProviderManager::hasProvider(const std::string &providerName) const
     return providers.count(providerName) > 0;
 }
 
-std::unique_ptr<Request> ProviderManager::createRequest(const std::string &providerName, const std::string &message)
+std::unique_ptr<Request> ProviderManager::createRequest(const std::string &providerName, Messages message)
 {
     if (requestFactories.count(providerName)) {
         return requestFactories[providerName]->createRequest(message);

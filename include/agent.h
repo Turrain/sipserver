@@ -1,10 +1,11 @@
 #pragma once
 #include "json.hpp"
-
+#include <deque>
 #include "logger.h"
 #include <string>
 #include <vector>
 #include "provider_manager.h"
+#include "request.h"
 using json = nlohmann::json;
 
 class Agent {
@@ -12,37 +13,15 @@ public:
     std::string id;
     json config;
 
-    struct STMEntry {
-        std::string role;
-        std::string content;
-    };
-    std::deque<STMEntry> shortTermMemory;
+    Messages history;
     int stmCapacity;
     Agent(const std::string &agent_id, const json &cfg) :
         id(agent_id), config(cfg)
     {
         stmCapacity = config.value("stm_capacity", 10); // Default STM capacity
-        shortTermMemory.clear(); // Ensure STM is empty when initialized
-    }
-    void addToSTM(const std::string &role, const std::string &content)
-    {
-        if (shortTermMemory.size() >= stmCapacity) {
-            shortTermMemory.pop_front(); // Remove the oldest entry
-        }
-        shortTermMemory.push_back({ role, content });
-        LOG_DEBUG("Agent %s added to STM: %s - %s", id.c_str(), role.c_str(), content.c_str());
+        history.clear();
     }
 
-    std::vector<STMEntry> getSTM() const
-    {
-        return std::vector<STMEntry>(shortTermMemory.begin(), shortTermMemory.end());
-    }
-
-    void clearSTM()
-    {
-        shortTermMemory.clear();
-        LOG_DEBUG("Agent %s cleared STM", id.c_str());
-    }
 
     virtual ~Agent() = default;
     virtual void think(const std::string &message) = 0;
@@ -66,8 +45,8 @@ public:
     void think(const std::string &message) override
     {
         LOG_DEBUG("BaseAgent %s thinks: %s", id.c_str(), message.c_str());
-        addToSTM("user", message);
-
+   //     addToSTM("user", message);
+        history.push_back({"user", message});
         // Get the provider name from the agent's configuration
         std::string providerName = config.value("provider", "");
 
@@ -83,7 +62,7 @@ public:
         }
 
         // Use ProviderManager to create the request
-        std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, message);
+        std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, history);
 
         if (!request) {
             LOG_ERROR("Failed to create a request for provider: %s", providerName.c_str());
@@ -100,7 +79,8 @@ public:
 
         if (response) {
             LOG_INFO("Agent %s received response: %s", id.c_str(), response->toString().c_str());
-            addToSTM("assistant", response->toString());
+            
+            history.push_back({"assistant", response->toString()});
         } else {
             LOG_ERROR("Agent %s did not receive a response.", id.c_str());
         }

@@ -62,13 +62,13 @@ std::unique_ptr<Provider> OllamaProviderFactory::createProvider()
 
 std::string OllamaRequest::getProviderName() const { return "Ollama"; }
 
-OllamaRequest::OllamaRequest(const std::string &prompt, const std::string &model) : prompt(prompt), model(model) {}
+OllamaRequest::OllamaRequest(Messages messages) : messages(messages) {}
 
 json OllamaRequest::toJson() const
 {
     json j;
     j["model"] = model;
-    j["prompt"] = prompt;
+    j["prompt"] = toString(messages);
     j["stream"] = stream;
     if (!format.empty()) {
         j["format"] = format;
@@ -85,7 +85,7 @@ void OllamaRequest::fromJson(const json &j)
         model = j["model"];
     }
     if (j.contains("prompt")) {
-        prompt = j["prompt"];
+        messages = j["prompt"];
     }
     if (j.contains("stream")) {
         stream = j["stream"];
