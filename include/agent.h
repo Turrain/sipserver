@@ -1,11 +1,11 @@
 #pragma once
 #include "json.hpp"
-#include <deque>
 #include "logger.h"
-#include <string>
-#include <vector>
 #include "provider_manager.h"
 #include "request.h"
+#include <deque>
+#include <string>
+#include <vector>
 using json = nlohmann::json;
 
 class Agent {
@@ -18,10 +18,9 @@ public:
     Agent(const std::string &agent_id, const json &cfg) :
         id(agent_id), config(cfg)
     {
-        stmCapacity = config.value("stm_capacity", 10); // Default STM capacity
+        stmCapacity = config.value("stm_capacity", 10);
         history.clear();
     }
-
 
     virtual ~Agent() = default;
     virtual void think(const std::string &message) = 0;
@@ -29,7 +28,7 @@ public:
     virtual void speak(std::function<void(const std::vector<int16_t> &)> &get_audio_callback) = 0;
     virtual void configure(const json &newConfig)
     {
-        config.merge_patch(newConfig); // Use JSON merge patch to update
+        config.merge_patch(newConfig);
         if (newConfig.contains("stm_capacity")) {
             stmCapacity = newConfig["stm_capacity"];
         }
@@ -45,9 +44,9 @@ public:
     void think(const std::string &message) override
     {
         LOG_DEBUG("BaseAgent %s thinks: %s", id.c_str(), message.c_str());
-   //     addToSTM("user", message);
-        history.push_back({"user", message});
-        // Get the provider name from the agent's configuration
+
+        history.push_back({ "user", message });
+
         std::string providerName = config.value("provider", "");
 
         if (providerName.empty()) {
@@ -55,13 +54,11 @@ public:
             return;
         }
 
-        // Check if the provider is available in the ProviderManager
         if (!ProviderManager::getInstance()->hasProvider(providerName)) {
             LOG_ERROR("Provider '%s' specified for agent %s is not available.", providerName.c_str(), id.c_str());
             return;
         }
 
-        // Use ProviderManager to create the request
         std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, history);
 
         if (!request) {
@@ -69,18 +66,16 @@ public:
             return;
         }
 
-        // Apply provider-specific configurations from the agent's config
         if (config.contains(providerName)) {
             request->fromJson(config[providerName]);
         }
 
-        // Process the request using the ProviderManager
         auto response = ProviderManager::getInstance()->processRequest(request);
 
         if (response) {
             LOG_INFO("Agent %s received response: %s", id.c_str(), response->toString().c_str());
-            
-            history.push_back({"assistant", response->toString()});
+
+            history.push_back({ "assistant", response->toString() });
         } else {
             LOG_ERROR("Agent %s did not receive a response.", id.c_str());
         }
@@ -104,10 +99,9 @@ public:
 };
 class AgentManager {
 public:
-    // Singleton instance
     static AgentManager *getInstance()
     {
-        static AgentManager instance; // Guaranteed to be initialized only once
+        static AgentManager instance;
         return &instance;
     }
 
@@ -118,7 +112,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (agents_.find(id) != agents_.end()) {
-            // Return existing if found; or throw an error if you want to restrict duplicates
+
             return agents_[id];
         }
 
@@ -126,7 +120,7 @@ public:
         if (type == "BaseAgent") {
             agentPtr = std::make_shared<BaseAgent>(id, cfg);
         } else {
-            // Default
+
             agentPtr = std::make_shared<BaseAgent>(id, cfg);
         }
         agents_[id] = agentPtr;
@@ -142,7 +136,6 @@ public:
         return nullptr;
     }
 
-    // Method to update an agent's configuration
     bool updateAgentConfig(const std::string &agentId, const json &newConfig)
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -154,10 +147,10 @@ public:
     }
 
 private:
-    AgentManager() { } // Private constructor
-    ~AgentManager() { } // Private destructor
-    AgentManager(const AgentManager &) = delete; // Prevent copy-construction
-    AgentManager &operator=(const AgentManager &) = delete; // Prevent assignment
+    AgentManager() { }
+    ~AgentManager() { }
+    AgentManager(const AgentManager &) = delete;
+    AgentManager &operator=(const AgentManager &) = delete;
 
     std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;
     std::mutex mutex_;

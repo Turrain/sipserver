@@ -29,6 +29,8 @@ set(COMMON_COMPILE_OPTIONS
 include_directories(${CMAKE_SOURCE_DIR}/include)
 file(GLOB SOURCES "src/*.cpp") 
 add_executable(server main.cpp ${SOURCES})
+#add_library(server STATIC ${SOURCES})
+file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})
 
 target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
