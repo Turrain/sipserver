@@ -167,7 +167,7 @@ This project is designed to make a call 📞 using PJSIP and connect it with a l
 
 ## How it works ⚙️
 
-Call Setup: The Manager sets up a call using PJSIP.
-Audio Processing: The jMediaPort and jVAD work together to capture and process audio from the call.
-Interaction with LLM: The Agent sends the processed audio to the LLM (via the ProviderManager) and receives responses.
-Conversation: The LLM's responses are converted to speech and played back during the call.
+- Call Setup: The Manager sets up a call using PJSIP.
+- Audio Processing: The jMediaPort and jVAD work together to capture and process audio from the call.
+- Interaction with LLM: The Agent sends the processed audio to the LLM (via the ProviderManager) and receives responses.
+- Conversation: The LLM's responses are converted to speech and played back during the call.
