@@ -5,7 +5,7 @@
 #include <deque>
 #include <mutex>
 #include <pjsua2.hpp>
-#include "webrtcvad.h"
+#include "deps/webrtcvad.h"
 
 using namespace pj;
 

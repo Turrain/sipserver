@@ -1,8 +1,8 @@
 // jAccount.cpp
-#include "jAccount.h"
-#include "jCall.h"
-#include "logger.h"
-#include "agent.h"
+#include "sip/account.h"
+#include "sip/call.h"
+#include "utils/logger.h"
+#include "agent/agent.h"
 
 void jAccount::setAgent(const std::string& agentId)
 {

@@ -1,14 +1,14 @@
 // jMediaPort.cpp
-#include "jMediaPort.h"
+#include "sip/media_port.h"
 
-jMediaPort::jMediaPort() : AudioMediaPort() {}
+media_port::media_port() : AudioMediaPort() {}
 
-void jMediaPort::addToQueue(const std::vector<int16_t>& audioData)
+void media_port::addToQueue(const std::vector<int16_t>& audioData)
 {
     audioQueue.emplace(audioData);
 }
 
-void jMediaPort::onFrameRequested(MediaFrame& frame)
+void media_port::onFrameRequested(MediaFrame& frame)
 {
     frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
 
@@ -42,12 +42,12 @@ void jMediaPort::onFrameRequested(MediaFrame& frame)
     frame.size = static_cast<unsigned>(tempBuffer.size() * sizeof(int16_t));
 }
 
-void jMediaPort::onFrameReceived(MediaFrame& frame)
+void media_port::onFrameReceived(MediaFrame& frame)
 {
     vad.processFrame(frame);
 }
 
-void jMediaPort::clearQueue()
+void media_port::clearQueue()
 {
     std::queue<std::vector<int16_t>>().swap(audioQueue);
     pcmBuffer.clear();

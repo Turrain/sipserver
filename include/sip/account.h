@@ -1,4 +1,4 @@
-// jAccount.h
+// account.h
 #pragma once
 
 #include <pjsua2.hpp>

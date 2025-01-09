@@ -1,11 +1,11 @@
-// jCall.h
+// call.h
 #pragma once
 
 #include <pjsua2.hpp>
 #include <memory>
-#include "jMediaPort.h"
-#include "agent.h"
-#include "jAccount.h"
+#include "sip/jMediaPort.h"
+#include "agent/agent.h"
+#include "sip/jAccount.h"
 class jCall : public pj::Call {
 public:
     void onCallState(pj::OnCallStateParam& prm) override;

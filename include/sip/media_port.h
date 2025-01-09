@@ -1,10 +1,10 @@
-// jMediaPort.h
+// media_port.h
 #pragma once
 
 #include <pjsua2.hpp>
 #include <queue>
 #include <vector>
-#include "jVAD.h"
+#include "sip/jVAD.h"
 
 using namespace pj;
 
