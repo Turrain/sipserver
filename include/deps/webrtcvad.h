@@ -6,7 +6,7 @@
 #define WEBRTCVAD_H
 #include "webrtc/common_audio/vad/include/webrtc_vad.h"
 #include <stdexcept>
-#
+
 class WebRtcVad {
 public:
   WebRtcVad() {

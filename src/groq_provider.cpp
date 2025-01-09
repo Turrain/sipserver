@@ -1,10 +1,10 @@
-#include "groq_provider.h"
-#include "request.h"
-#include "response.h"
-#include "logger.h"
-#include <json.hpp>
+#include "provider/groq_provider.h"
+#include "provider/request.h"
+#include "provider/response.h"
+#include "utils/logger.h"
+#include <deps/json.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
-#include <httplib.h>
+#include <deps/httplib.h>
 
 using json = nlohmann::json;
 

@@ -3,17 +3,17 @@
 
 #include <pjsua2.hpp>
 #include <memory>
-#include "sip/jMediaPort.h"
+#include "sip/media_port.h"
 #include "agent/agent.h"
-#include "sip/jAccount.h"
-class jCall : public pj::Call {
+#include "sip/account.h"
+class Call : public pj::Call {
 public:
     void onCallState(pj::OnCallStateParam& prm) override;
     void onCallMediaState(pj::OnCallMediaStateParam& prm) override;
 
     std::shared_ptr<Agent> getAgent() const;
 
-    jCall(jAccount& acc, int call_id = PJSUA_INVALID_ID);
+    Call(Account& acc, int call_id = PJSUA_INVALID_ID);
 
     enum Direction {
         INCOMING,
@@ -21,6 +21,6 @@ public:
     } direction;
 
 private:
-    jAccount m_account;
-    jMediaPort mediaPort;
+    Account m_account;
+    MediaPort mediaPort;
 };

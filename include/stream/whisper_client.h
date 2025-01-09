@@ -1,6 +1,6 @@
 #pragma once
 #include "abs_ws_client.h"
-#include "json.hpp"
+#include "deps/json.hpp"
 class WhisperClient : public AbstractWebSocketClient {
 public:
     using TranscriptionCallback = std::function<void(const std::string&)>;

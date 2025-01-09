@@ -1,14 +1,14 @@
 // jVAD.cpp
 #include "sip/vad.h"
 
-vad::vad()
+VAD::VAD()
 {
     vad.setMode(2);
     vadRingBuffer.resize(PADDING_MS / FRAME_DURATION_MS);
     voiceBuffer.reserve(MAX_BUFFER_SIZE);
 }
 
-void vad::processFrame(const MediaFrame& frame)
+void VAD::processFrame(const pj::MediaFrame& frame)
 {
     if (frame.size == 0) {
         return;
@@ -19,27 +19,27 @@ void vad::processFrame(const MediaFrame& frame)
     processVAD(frame, is_voiced);
 }
 
-void vad::setVoiceSegmentCallback(VoiceSegmentCallback callback)
+void VAD::setVoiceSegmentCallback(VoiceSegmentCallback callback)
 {
     onVoiceSegment = std::move(callback);
 }
 
-void vad::setSilenceCallback(SilenceCallback callback)
+void VAD::setSilenceCallback(SilenceCallback callback)
 {
     onSilence = std::move(callback);
 }
 
-void vad::setVoiceFrameCallback(VoiceFrameCallback callback)
+void VAD::setVoiceFrameCallback(VoiceFrameCallback callback)
 {
     onVoiceFrame = std::move(callback);
 }
 
-void vad::setSpeechStartedCallback(SpeechStartedCallback callback)
+void VAD::setSpeechStartedCallback(SpeechStartedCallback callback)
 {
     onSpeechStarted = std::move(callback);
 }
 
-std::vector<int16_t> vad::mergeFrames(const std::vector<MediaFrame>& frames)
+std::vector<int16_t> VAD::mergeFrames(const std::vector<pj::MediaFrame>& frames)
 {
     std::vector<int16_t> result;
     result.reserve(frames.size() * 320);
@@ -52,7 +52,7 @@ std::vector<int16_t> vad::mergeFrames(const std::vector<MediaFrame>& frames)
     return result;
 }
 
-void vad::processVAD(const MediaFrame& frame, bool is_voiced)
+void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
 {
     if (!triggered) {
         vadRingBuffer.emplace_back(frame, is_voiced);
@@ -97,7 +97,7 @@ void vad::processVAD(const MediaFrame& frame, bool is_voiced)
     }
 }
 
-void vad::processVoicedFrame(const MediaFrame& frame)
+void VAD::processVoicedFrame(const pj::MediaFrame& frame)
 {
     if (voiceBuffer.size() < MAX_BUFFER_SIZE) {
         voiceBuffer.push_back(frame);
@@ -107,7 +107,7 @@ void vad::processVoicedFrame(const MediaFrame& frame)
     }
 }
 
-void vad::processSilence()
+void VAD::processSilence()
 {
     if (onSilence) {
         onSilence();

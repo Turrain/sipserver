@@ -4,18 +4,16 @@
 #include <pjsua2.hpp>
 #include <queue>
 #include <vector>
-#include "sip/jVAD.h"
+#include "sip/vad.h"
 
-using namespace pj;
-
-class jMediaPort : public AudioMediaPort {
+class MediaPort : public pj::AudioMediaPort {
 public:
-    jVAD vad;
+    VAD vad;
 
-    explicit jMediaPort();
+    explicit MediaPort();
     void addToQueue(const std::vector<int16_t>& audioData);
-    void onFrameRequested(MediaFrame& frame) override;
-    void onFrameReceived(MediaFrame& frame) override;
+    void onFrameRequested(pj::MediaFrame& frame) override;
+    void onFrameReceived(pj::MediaFrame& frame) override;
     void clearQueue();
 
 private:

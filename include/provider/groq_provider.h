@@ -1,6 +1,6 @@
 #pragma once
 
-#include "provider.h"
+#include "provider/provider.h"
 
 class GroqProvider: public Provider {
 private:

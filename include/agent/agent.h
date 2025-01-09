@@ -1,8 +1,8 @@
 #pragma once
-#include "json.hpp"
-#include "logger.h"
-#include "provider_manager.h"
-#include "request.h"
+#include "deps/json.hpp"
+#include "utils/logger.h"
+#include "provider/provider_manager.h"
+#include "provider/request.h"
 #include <deque>
 #include <string>
 #include <vector>

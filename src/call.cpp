@@ -4,15 +4,15 @@
 #include "utils/logger.h"
 #include "agent/agent.h"
 
-void call::onCallState(pj::OnCallStateParam& prm)
+void Call::onCallState(pj::OnCallStateParam& prm)
 {
     pj::CallInfo ci = getInfo();
     LOG_DEBUG("onCallState: Call %d state: %d", ci.id, ci.state);
 }
 
-void call::onCallMediaState(pj::OnCallMediaStateParam& prm)
+void Call::onCallMediaState(pj::OnCallMediaStateParam& prm)
 {
-    
+
     auto agent = getAgent();
     pj::CallInfo ci = getInfo();
     LOG_DEBUG("onCallMediaState: Call %d media state: %d", ci.id, ci.state);
@@ -24,10 +24,10 @@ void call::onCallMediaState(pj::OnCallMediaStateParam& prm)
 
             auto portInfo = aud_med->getPortInfo();
             auto format = portInfo.format;
-            if (direction == call::INCOMING) {
+            if (direction == Call::INCOMING) {
                 LOG_DEBUG("AUDIO INCOMING");
                 agent->think("Привет, я твой ассистент.");
-                
+
              //   agent->sendText("Привет, я твой ассистент.");
             }
             aud_med->startTransmit(mediaPort);
@@ -36,12 +36,12 @@ void call::onCallMediaState(pj::OnCallMediaStateParam& prm)
     }
 }
 
-std::shared_ptr<Agent> call::getAgent() const
+std::shared_ptr<Agent> Call::getAgent() const
 {
     return m_account.getAgent();
 }
 
-call::call(jAccount& acc, int call_id) :
+Call::Call(Account& acc, int call_id) :
     pj::Call(acc, call_id),
     m_account(acc)
 {

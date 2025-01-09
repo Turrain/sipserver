@@ -1,9 +1,9 @@
-#include "ollama_provider.h"
-#include "request.h"
-#include "response.h"
-#include "logger.h"
-#include <json.hpp>
-#include <httplib.h>
+#include "provider/ollama_provider.h"
+#include "provider/request.h"
+#include "provider/response.h"
+#include "utils/logger.h"
+#include <deps/json.hpp>
+#include <deps/httplib.h>
 
 using json = nlohmann::json;
 

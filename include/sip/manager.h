@@ -12,8 +12,8 @@
 #include <atomic>
 #include <condition_variable>
 
-#include "jAccount.h"
-#include "jCall.h"
+#include "sip/account.h"
+#include "sip/call.h"
 
 class Manager {
 public:
@@ -47,8 +47,8 @@ private:
     void enqueueTask(std::function<void()> task);
 
     pj::Endpoint m_endpoint;
-    std::unordered_map<std::string, std::unique_ptr<jAccount>> m_accounts;
-    std::unordered_map<int, std::unique_ptr<jCall>> m_activeCalls;
+    std::unordered_map<std::string, std::unique_ptr<Account>> m_accounts;
+    std::unordered_map<int, std::unique_ptr<Call>> m_activeCalls;
 
     TaskQueue m_taskQueue;
     std::unique_ptr<std::thread> m_workerThread;

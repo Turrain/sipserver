@@ -4,38 +4,38 @@
 #include "utils/logger.h"
 #include "agent/agent.h"
 
-void jAccount::setAgent(const std::string& agentId)
+void Account::setAgent(const std::string& agentId)
 {
     m_agentId = agentId;
     m_agent = AgentManager::getInstance()->getAgent(agentId);
 }
 
-std::shared_ptr<Agent> jAccount::getAgent() const
+std::shared_ptr<Agent> Account::getAgent() const
 {
     return m_agent;
 }
 
-void jAccount::registerRegStateCallback(onRegStateCallback cb)
+void Account::registerRegStateCallback(onRegStateCallback cb)
 {
     regStateCallback = std::move(cb);
 }
 
-void jAccount::onRegState(pj::OnRegStateParam& prm)
+void Account::onRegState(pj::OnRegStateParam& prm)
 {
     pj::AccountInfo ai = getInfo();
     LOG_DEBUG("Registration state: %d", ai.regIsActive);
     LOG_DEBUG("Registration status: %d", ai.regStatus);
 }
 
-void jAccount::onIncomingCall(pj::OnIncomingCallParam& iprm)
+void Account::onIncomingCall(pj::OnIncomingCallParam& iprm)
 {
-    auto* call = new jCall(*this, iprm.callId);
+    auto* call = new Call(*this, iprm.callId);
     pj::CallInfo ci = call->getInfo();
     LOG_DEBUG("Incoming call from %s", ci.remoteUri.c_str());
     pj::CallOpParam prm;
     prm.statusCode = PJSIP_SC_OK;
-    call->direction = jCall::INCOMING;
+    call->direction = Call::INCOMING;
     call->answer(prm);
 }
 
-jAccount::~jAccount() {}
+Account::~Account() {}

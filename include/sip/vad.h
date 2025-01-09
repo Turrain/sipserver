@@ -7,31 +7,30 @@
 #include <pjsua2.hpp>
 #include "deps/webrtcvad.h"
 
-using namespace pj;
 
-class jVAD {
+class VAD {
 public:
-    using VoiceSegmentCallback = std::function<void(const std::vector<MediaFrame>&)>;
+    using VoiceSegmentCallback = std::function<void(const std::vector<pj::MediaFrame>&)>;
     using SilenceCallback = std::function<void()>;
-    using VoiceFrameCallback = std::function<void(const MediaFrame&)>;
+    using VoiceFrameCallback = std::function<void(const pj::MediaFrame&)>;
     using SpeechStartedCallback = std::function<void()>;
 
 public:
-    jVAD();
-    void processFrame(const MediaFrame& frame);
-    
+    VAD();
+    void processFrame(const pj::MediaFrame& frame);
+
     void setVoiceSegmentCallback(VoiceSegmentCallback callback);
     void setSilenceCallback(SilenceCallback callback);
     void setVoiceFrameCallback(VoiceFrameCallback callback);
     void setSpeechStartedCallback(SpeechStartedCallback callback);
 
-    static std::vector<int16_t> mergeFrames(const std::vector<MediaFrame>& frames);
+    static std::vector<int16_t> mergeFrames(const std::vector<pj::MediaFrame>& frames);
 
 private:
     WebRtcVad vad;
     std::mutex bufferMutex;
-    std::deque<std::pair<MediaFrame, bool>> vadRingBuffer;
-    std::vector<MediaFrame> voiceBuffer;
+    std::deque<std::pair<pj::MediaFrame, bool>> vadRingBuffer;
+    std::vector<pj::MediaFrame> voiceBuffer;
     bool triggered = false;
 
     VoiceSegmentCallback onVoiceSegment;
@@ -44,7 +43,7 @@ private:
     static constexpr int FRAME_DURATION_MS = 20;
     static constexpr float VAD_RATIO = 0.85;
 
-    void processVAD(const MediaFrame& frame, bool is_voiced);
-    void processVoicedFrame(const MediaFrame& frame);
+    void processVAD(const pj::MediaFrame& frame, bool is_voiced);
+    void processVoicedFrame(const pj::MediaFrame& frame);
     void processSilence();
 };

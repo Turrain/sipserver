@@ -4,13 +4,13 @@
 #include <string>
 #include <thread>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.h"
-#include "manager.h"
-#include "request_factory.h"
-#include "ollama_provider.h"
-#include "groq_provider.h"
-#include "json.hpp"
-#include "agent.h"
+#include "deps/httplib.h"
+#include "sip/manager.h"
+#include "provider/request_factory.h"
+#include "provider/ollama_provider.h"
+#include "provider/groq_provider.h"
+#include "deps/json.hpp"
+#include "agent/agent.h"
 
 
 // TODO: Update a docker files to use cache, or optimize build

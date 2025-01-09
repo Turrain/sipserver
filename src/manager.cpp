@@ -1,6 +1,6 @@
 // Manager.cpp
-#include "manager.h"
-#include "logger.h"
+#include "sip/manager.h"
+#include "utils/logger.h"
 #include <iostream>
 
 Manager::Manager()
@@ -54,7 +54,7 @@ void Manager::addAccount(const std::string& accountId, const std::string& domain
             pj::AuthCredInfo credInfo("digest", "*", username, 0, password);
             accountConfig.sipConfig.authCreds.push_back(credInfo);
 
-            auto account = std::make_unique<jAccount>();
+            auto account = std::make_unique<Account>();
             account->create(accountConfig);
             account->registerRegStateCallback([](auto state, auto status) {
                 std::cout << "Registration state: " << state << " Status: " << status
@@ -106,7 +106,7 @@ void Manager::makeCall(const std::string& accountId, const std::string& destUri)
             }
 
             pj::CallOpParam callOpParam;
-            auto call = std::make_unique<jCall>(*accountIt->second);
+            auto call = std::make_unique<Call>(*accountIt->second);
             call->makeCall(destUri, callOpParam);
 
             {

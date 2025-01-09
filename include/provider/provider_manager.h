@@ -1,9 +1,9 @@
 #pragma once
 
-#include "provider.h"
-#include "request.h"
-#include "request_factory.h"
-#include <json.hpp>
+#include "provider/provider.h"
+#include "provider/request.h"
+#include "provider/request_factory.h"
+#include "deps/json.hpp"
 #include <map>
 #include <memory>
 #include <mutex>

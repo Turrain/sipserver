@@ -8,7 +8,7 @@
 
 class Agent;
 
-class jAccount : public pj::Account {
+class Account : public pj::Account {
 public:
     using onRegStateCallback = std::function<void(bool, pj_status_t)>;
 
@@ -18,7 +18,7 @@ public:
     void onRegState(pj::OnRegStateParam& prm) override;
     void onIncomingCall(pj::OnIncomingCallParam& iprm) override;
 
-    ~jAccount() override;
+    ~Account() override;
 
 private:
     onRegStateCallback regStateCallback = nullptr;

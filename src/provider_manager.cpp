@@ -1,9 +1,9 @@
-#include "provider_manager.h"
-#include "ollama_provider.h"
-#include "groq_provider.h"
-#include "request.h"
-#include "request_factory.h"
-#include "logger.h"
+#include "provider/provider_manager.h"
+#include "provider/ollama_provider.h"
+#include "provider/groq_provider.h"
+#include "provider/request.h"
+#include "provider/request_factory.h"
+#include "utils/logger.h"
 #include <iostream>
 
 ProviderManager *ProviderManager::instance = nullptr;
