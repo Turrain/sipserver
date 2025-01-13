@@ -1,12 +1,14 @@
 // Manager.cpp
 #include "sip/manager.h"
+#include "agent/agent.h"
 #include "utils/logger.h"
 #include <iostream>
+#include <memory>
 
-Manager::Manager()
+Manager::Manager(std::shared_ptr<AgentManager> manager): m_agentManager(manager) 
 {
     try {
-        m_agentManager = std::make_shared<AgentManager>();
+       
 
         // Initialize PJSIP endpoint
         m_endpoint.libCreate();
@@ -187,6 +189,8 @@ void Manager::TaskQueue::stop()
     }
     condition.notify_all();
 }
+
+
 
 void Manager::workerThreadMain()
 {

@@ -3,6 +3,7 @@
 #include "sip/manager.h"
 #include "deps/httplib.h"
 #include "deps/json.hpp"
+#include <memory>
 
 class Server {
   public:
@@ -12,7 +13,7 @@ class Server {
     void setupRoutes();
 
   private:
-    Manager m_sipManager;
+    std::shared_ptr<Manager> m_manager;
+    std::shared_ptr<AgentManager> m_agentManager;
     httplib::Server m_server;
-    AgentManager* m_agentManager;
 };

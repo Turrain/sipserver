@@ -4,6 +4,7 @@
 #include "provider/provider_manager.h"
 #include "provider/request.h"
 #include <deque>
+#include <memory>
 #include <string>
 #include <vector>
 using json = nlohmann::json;
@@ -131,6 +132,16 @@ public:
         return nullptr;
     }
 
+    std::vector<std::shared_ptr<Agent>> getAgents()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<std::shared_ptr<Agent>> agents;
+        for (const auto& [id, agent] : agents_) {
+            agents.push_back(agent);
+        }
+        return agents;
+    }
+
     bool updateAgentConfig(const std::string &agentId, const json &newConfig)
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -140,6 +151,11 @@ public:
         }
         return false;
     }
+    bool removeAgent(const std::string &id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return agents_.erase(id) > 0;
+}
+
 
 private:
     std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;

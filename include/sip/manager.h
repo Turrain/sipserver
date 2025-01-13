@@ -18,7 +18,7 @@
 
 class Manager {
 public:
-    Manager();
+    Manager(std::shared_ptr<AgentManager> manager);
     ~Manager();
 
     void addAccount(const std::string& accountId, const std::string& domain,
@@ -26,6 +26,7 @@ public:
         const std::string& registrarUri, const std::string& agentId = "");
     void removeAccount(const std::string& accountId);
     void makeCall(const std::string& accountId, const std::string& destUri);
+
     void hangupCall(int callId);
     void shutdown();
 
