@@ -4,10 +4,16 @@
 #include "utils/logger.h"
 #include "agent/agent.h"
 
+
+Account::Account(std::shared_ptr<AgentManager> agentManager)
+    : m_agentManager(agentManager)
+{
+}
+
 void Account::setAgent(const std::string& agentId)
 {
     m_agentId = agentId;
-    m_agent = AgentManager::getInstance()->getAgent(agentId);
+    m_agent = m_agentManager->getAgent(agentId);
 }
 
 std::shared_ptr<Agent> Account::getAgent() const

@@ -99,11 +99,6 @@ public:
 };
 class AgentManager {
 public:
-    static AgentManager *getInstance()
-    {
-        static AgentManager instance;
-        return &instance;
-    }
 
     std::shared_ptr<Agent> createAgent(const std::string &id,
         const std::string &type,
@@ -147,11 +142,6 @@ public:
     }
 
 private:
-    AgentManager() { }
-    ~AgentManager() { }
-    AgentManager(const AgentManager &) = delete;
-    AgentManager &operator=(const AgentManager &) = delete;
-
     std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;
     std::mutex mutex_;
 };

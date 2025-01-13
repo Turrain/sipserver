@@ -12,6 +12,7 @@
 #include <atomic>
 #include <condition_variable>
 
+#include "agent/agent.h"
 #include "sip/account.h"
 #include "sip/call.h"
 
@@ -55,4 +56,6 @@ private:
     std::atomic<bool> m_running{ true };
     std::mutex m_accountsMutex;
     std::mutex m_callsMutex;
+    
+    std::shared_ptr<AgentManager> m_agentManager ;
 };

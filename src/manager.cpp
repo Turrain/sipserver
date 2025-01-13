@@ -6,6 +6,8 @@
 Manager::Manager()
 {
     try {
+        m_agentManager = std::make_shared<AgentManager>();
+
         // Initialize PJSIP endpoint
         m_endpoint.libCreate();
 
@@ -54,7 +56,7 @@ void Manager::addAccount(const std::string& accountId, const std::string& domain
             pj::AuthCredInfo credInfo("digest", "*", username, 0, password);
             accountConfig.sipConfig.authCreds.push_back(credInfo);
 
-            auto account = std::make_unique<Account>();
+            auto account = std::make_unique<Account>(m_agentManager);
             account->create(accountConfig);
             account->registerRegStateCallback([](auto state, auto status) {
                 std::cout << "Registration state: " << state << " Status: " << status
