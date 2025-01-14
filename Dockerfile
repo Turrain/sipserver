@@ -27,6 +27,8 @@ RUN apt-get update && \
         tar \
         pkg-config
 
+RUN git config --global http.version HTTP/1.1
+
 RUN git clone https://github.com/Microsoft/vcpkg.git /opt/vcpkg && \
     /opt/vcpkg/bootstrap-vcpkg.sh && \
     ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
