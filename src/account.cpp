@@ -29,6 +29,9 @@ void Account::registerRegStateCallback(onRegStateCallback cb)
 void Account::onRegState(pj::OnRegStateParam& prm)
 {
     pj::AccountInfo ai = getInfo();
+    if (regStateCallback) {
+        regStateCallback(ai.regIsActive, ai.regStatus);
+    }
     LOG_DEBUG("Registration state: %d", ai.regIsActive);
     LOG_DEBUG("Registration status: %d", ai.regStatus);
 }

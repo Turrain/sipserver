@@ -9,6 +9,7 @@
 #include <mutex>
 #include <queue>
 #include <functional>
+#include <future>
 #include <atomic>
 #include <condition_variable>
 
@@ -16,12 +17,23 @@
 #include "sip/account.h"
 #include "sip/call.h"
 
+struct RegistrationStatus {
+    bool success;
+    std::string message;
+    int statusCode;
+};
+
+struct RegistrationState {
+    std::promise<RegistrationStatus> promise;
+    bool completed = false;
+};
+
 class Manager {
 public:
     Manager(std::shared_ptr<AgentManager> manager);
     ~Manager();
 
-    void addAccount(const std::string& accountId, const std::string& domain,
+    RegistrationStatus addAccount(const std::string& accountId, const std::string& domain,
         const std::string& username, const std::string& password,
         const std::string& registrarUri, const std::string& agentId = "");
     void removeAccount(const std::string& accountId);

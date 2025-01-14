@@ -37,7 +37,7 @@ void Server::setupRoutes()
             std::string accountId = data["username"].get<std::string>() + "@" + data["domain"].get<std::string>();
             std::string agentId = data.value("agentId", "");
 
-            m_manager->addAccount(
+            auto result = m_manager->addAccount(
                 accountId,
                 data["domain"],
                 data["username"],
@@ -45,8 +45,21 @@ void Server::setupRoutes()
                 data["registrarUri"],
                 agentId);
 
-            res.status = 201;
-            res.set_content(json { { "accountId", accountId } }.dump(), "application/json");
+            if (result.success) {
+                res.status = 201;
+                res.set_content(json {
+                                    { "accountId", accountId },
+                                    { "status", "registered" },
+                                    { "message", result.message } }
+                                    .dump(),
+                    "application/json");
+            } else {
+                res.status = result.statusCode;
+                res.set_content(json {
+                                    { "error", result.message } }
+                                    .dump(),
+                    "application/json");
+            }
         } catch (const std::exception &e) {
             res.status = 500;
             res.set_content(json { { "error", e.what() } }.dump(), "application/json");
