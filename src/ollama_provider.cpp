@@ -3,6 +3,7 @@
 #include "provider/response.h"
 #include "utils/logger.h"
 #include <deps/json.hpp>
+#define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <deps/httplib.h>
 
 using json = nlohmann::json;
@@ -26,32 +27,32 @@ std::unique_ptr<Response> OllamaProvider::handleRequest(const std::unique_ptr<Re
     };
 
     auto res = cli.Post("/api/generate", headers, ollamaRequest->toJson().dump(), "application/json");
-    if (res) {
-        if (res->status == 200) {
-            LOG_DEBUG("Ollama Response: %s", res->body.c_str());
+        if (res) {
+            if (res->status == 200) {
+                LOG_DEBUG("Ollama Response: %s", res->body.c_str());
 
-            json responseJson = json::parse(res->body);
-            auto response = std::make_unique<OllamaResponse>(
-                responseJson.value("response", ""),
-                responseJson.value("model", ""));
+                json responseJson = json::parse(res->body);
+                auto response = std::make_unique<OllamaResponse>(
+                    responseJson.value("response", ""),
+                    responseJson.value("model", ""));
 
-            response->createdAt = responseJson.value("created_at", "");
-            response->done = responseJson.value("done", false);
+                response->createdAt = responseJson.value("created_at", "");
+                response->done = responseJson.value("done", false);
 
-            return response;
+                return response;
+            } else {
+                LOG_ERROR("Ollama Error: %d", res->status);
+                json errorJson = json::parse(res->body);
+                auto errorResponse = std::make_unique<OllamaResponse>("");
+                errorResponse->error = errorJson.value("error", "Unknown error");
+                return errorResponse;
+            }
         } else {
-            LOG_ERROR("Ollama Error: %d", res->status);
-            json errorJson = json::parse(res->body);
+            LOG_ERROR("Ollama Connection Error");
             auto errorResponse = std::make_unique<OllamaResponse>("");
-            errorResponse->error = errorJson.value("error", "Unknown error");
+            errorResponse->error = "Failed to connect to Ollama";
             return errorResponse;
         }
-    } else {
-        LOG_ERROR("Ollama Connection Error");
-        auto errorResponse = std::make_unique<OllamaResponse>("");
-        errorResponse->error = "Failed to connect to Ollama";
-        return errorResponse;
-    }
 }
 
 std::unique_ptr<Provider> OllamaProviderFactory::createProvider()

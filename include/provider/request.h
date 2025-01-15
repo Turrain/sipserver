@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 #include <vector>
-
+#include <string_view>
 using json = nlohmann::json;
 
 
@@ -26,15 +26,30 @@ inline void from_json(const json& j, Message& m) {
 }
 
 typedef std::vector<Message> Messages;
-inline std::string toString(const Messages& messages, const std::string& delimiter = "\n") {
-    std::stringstream ss;
-    for (size_t i = 0; i < messages.size(); ++i) {
-        ss << "Role: " << messages[i].role << ", Content: " << messages[i].content;
-        if (i < messages.size() - 1) {
-            ss << delimiter;
+inline std::string toString(const Messages& messages, std::string_view delimiter = "\n") {
+    if (messages.empty()) return {};
+
+    const size_t total_size = std::transform_reduce(
+        messages.begin(), messages.end(),
+        delimiter.length() * (messages.size() - 1),
+        std::plus{},
+        [](const auto& msg) {
+            return msg.role.length() + msg.content.length() + 13;
         }
-    }
-    return ss.str();
+    );
+
+    std::string result;
+    result.reserve(total_size);
+
+    return std::accumulate(
+        messages.begin() + 1, messages.end(),
+        result + "Role: " + messages.front().role + ", Content: " + messages.front().content,
+        [&delimiter](std::string acc, const auto& msg) {
+            return std::move(acc).append(delimiter.data(), delimiter.length())
+                   .append("Role: ").append(msg.role)
+                   .append(", Content: ").append(msg.content);
+        }
+    );
 }
 
 class Request {
@@ -71,4 +86,13 @@ public:
     std::string getProviderName() const override;
     json toJson() const override;
     void fromJson(const json &j) override;
+};
+
+class DifyRequest: public Request {
+public:
+    std::string response_mode = "blocking";
+    json inputs = {};
+    std::string user;
+    std::string conversation_id;
+    
 };

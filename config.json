@@ -6,16 +6,13 @@
       "Groq": {
         "apiKey": "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",
         "baseUrl": "api.groq.com"
-      },
-      "OpenAI": {
-        "apiKey": "YOUR_OPENAI_API_KEY",
-        "baseUrl": "https://api.openai.com"
       }
+  
     },
     "agents": {
         "agent1": {
             "provider": "Ollama",
-            "model": "llama3.2:3b"
+            "model": "llama3.2:1b"
         },
         "agent2": {
             "provider": "Groq",
