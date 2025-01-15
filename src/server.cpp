@@ -12,9 +12,9 @@ Server::~Server() { }
 
 void Server::run()
 {
-    m_server.listen("127.0.0.1", 18080);
+    m_server.listen("localhost", 18080);
 }
-
+uint64_t event_id;
 void Server::setupRoutes()
 {
     //-----------------------------------------------
@@ -288,6 +288,30 @@ void Server::setupRoutes()
 
         res.status = 204;
     });
+
+#pragma endregion
+
+#pragma region Status
+
+    m_server.Get("/status", [this](const httplib::Request &req, httplib::Response &res) {
+        json response = {
+            { "status", "OK" }
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+    //TODO: Implemtent /events route
+    m_server.Get("/events",[this](const httplib::Request &req, httplib::Response &res){
+         res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_chunked_content_provider("text/event-stream", [this](size_t offset, httplib::DataSink &sink) {
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            auto text = "data: {\"id\": " + std::to_string(event_id++) + "}\n\n";
+            sink.write(text.c_str(), text.size());
+
+            return true;
+        });
+        res.set_header("Content-Type", "text/event-stream");
+      });
 
 #pragma endregion
 }

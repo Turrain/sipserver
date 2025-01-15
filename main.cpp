@@ -1,29 +1,22 @@
 
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "deps/httplib.h"
-#include "sip/manager.h"
-#include "provider/request_factory.h"
+
 #include "provider/ollama_provider.h"
 #include "provider/groq_provider.h"
-#include "deps/json.hpp"
 #include "agent/agent.h"
 #include "server/server.h"
 
-// TODO: Update a docker files to use cache, or optimize build
-// TODO: Make a tests for the project
-// TODO: Rework architecture of project
-// TODO: Update a LLM Providers
-// TODO: Rework Logger
-// TODO: Implement a start speech callback, rework VAD | 50%
-// TODO: Rework TTS,STT, make a abstractions, fabrics.
-// TODO: Implement  CI/CD pipeline
-// TODO: Implement a WebUI
-// TODO: Implement a second backend server like endpoint for SIP server
+// TODO: Update a docker files to use cache, or optimize build [o]
+// TODO: Make a tests for the project [x]
+// TODO: Implement  CI/CD pipeline [x]
+// TODO: Implement a WebUI (Stepan) [o]
+
+// TODO: Implement a SIP logic: Call info, Call transfer
+// TODO: Event stream
+//
 
 
 std::mutex Logger::logMutex;

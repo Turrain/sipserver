@@ -2,7 +2,6 @@
 #include "agent/agent.h"
 #include "sip/manager.h"
 #include "deps/httplib.h"
-#include "deps/json.hpp"
 #include <memory>
 
 class Server {

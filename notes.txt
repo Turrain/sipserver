@@ -1,0 +1,65 @@
+{
+  "account": {
+    "accountId": "5785320947769",
+    "calls": [
+      {
+        "callId": "5785320947769-1",
+        "callType": "INCOMING",
+        "callTime": "2021-07-13T10:00:00Z",
+        "callDuration": 60,
+        "callRate": 0.05
+      },
+      {
+        "callId": "5785320947769-2",
+        "callType": "OUTGOING",
+        "callTime": "2021-07-13T11:00:00Z",
+        "callDuration": 120,
+        "callRate": 0.05
+      }
+    ]
+  }
+}
+
+Cons: a lot of data, and i neet to store this somewhere
+--or--
+
+SOCKET
+
+{
+  "callId": "5785320947769-1",
+  "callType": "INCOMING",
+  "callTime": "2021-07-13T10:00:00Z",
+  "callDuration": 60,
+  "callRate": 0.05,
+  "account": {
+    "accountId": "5785320947769"
+  }
+}
+
+{
+  "callId": "5785320947769-2",
+  "callType": "OUTGOING",
+  "callTime": "2021-07-13T11:00:00Z",
+  "callDuration": 120,
+  "callRate": 0.05,
+  "account": {
+    "accountId": "5785320947769"
+  }
+}
+Cons: Implement socket server / stream
+--or--
+
+call/1234 ...
+
+PENDING
+...
+{
+  "callType": "INCOMING",
+  "callTime": "2021-07-13T10:00:00Z",
+  "callDuration": 60,
+  "callRate": 0.05,
+  "account": {
+    "accountId": "5785320947769"
+  }
+}
+Cons: Can be refused because of timeout

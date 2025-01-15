@@ -1,6 +1,6 @@
 // jVAD.cpp
 #include "sip/vad.h"
-
+#include <algorithm>
 VAD::VAD()
 {
     vad.setMode(2);
