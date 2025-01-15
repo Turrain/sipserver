@@ -122,7 +122,8 @@ void GroqRequest2::fromJson(const json &j)
 
 GroqResponse::GroqResponse() = default;
 
-GroqResponse::GroqResponse(const std::string &error) : error(error) {}
+GroqResponse::GroqResponse(const std::string &error) :
+    error(error) { }
 
 std::string GroqResponse::toString() const
 {

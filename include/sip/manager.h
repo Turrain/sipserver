@@ -1,17 +1,17 @@
 // Manager.h
 #pragma once
 
-#include <pjsua2.hpp>
-#include <string>
-#include <unordered_map>
-#include <memory>
-#include <thread>
-#include <mutex>
-#include <queue>
-#include <functional>
-#include <future>
 #include <atomic>
 #include <condition_variable>
+#include <functional>
+#include <future>
+#include <memory>
+#include <mutex>
+#include <pjsua2.hpp>
+#include <queue>
+#include <string>
+#include <thread>
+#include <unordered_map>
 
 #include "agent/agent.h"
 #include "sip/account.h"
@@ -33,11 +33,11 @@ public:
     Manager(std::shared_ptr<AgentManager> manager);
     ~Manager();
 
-    RegistrationStatus addAccount(const std::string& accountId, const std::string& domain,
-        const std::string& username, const std::string& password,
-        const std::string& registrarUri, const std::string& agentId = "");
-    void removeAccount(const std::string& accountId);
-    void makeCall(const std::string& accountId, const std::string& destUri);
+    RegistrationStatus addAccount(const std::string &accountId, const std::string &domain,
+        const std::string &username, const std::string &password,
+        const std::string &registrarUri, const std::string &agentId = "");
+    void removeAccount(const std::string &accountId);
+    void makeCall(const std::string &accountId, const std::string &destUri);
 
     void hangupCall(int callId);
     void shutdown();
@@ -66,9 +66,9 @@ private:
 
     TaskQueue m_taskQueue;
     std::unique_ptr<std::thread> m_workerThread;
-    std::atomic<bool> m_running{ true };
+    std::atomic<bool> m_running { true };
     std::mutex m_accountsMutex;
     std::mutex m_callsMutex;
-    
-    std::shared_ptr<AgentManager> m_agentManager ;
+
+    std::shared_ptr<AgentManager> m_agentManager;
 };

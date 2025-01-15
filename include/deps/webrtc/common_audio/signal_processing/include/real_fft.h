@@ -23,8 +23,8 @@ struct RealFFT;
 extern "C" {
 #endif
 
-struct RealFFT* WebRtcSpl_CreateRealFFT(int order);
-void WebRtcSpl_FreeRealFFT(struct RealFFT* self);
+struct RealFFT *WebRtcSpl_CreateRealFFT(int order);
+void WebRtcSpl_FreeRealFFT(struct RealFFT *self);
 
 // Compute an FFT for a real-valued signal of length of 2^order,
 // where 1 < order <= MAX_FFT_ORDER. Transform length is determined by the
@@ -57,9 +57,9 @@ void WebRtcSpl_FreeRealFFT(struct RealFFT* self);
 // Return Value:
 //   0  - FFT calculation is successful.
 //   -1 - Error with bad arguments (null pointers).
-int WebRtcSpl_RealForwardFFT(struct RealFFT* self,
-                             const int16_t* real_data_in,
-                             int16_t* complex_data_out);
+int WebRtcSpl_RealForwardFFT(struct RealFFT *self,
+    const int16_t *real_data_in,
+    int16_t *complex_data_out);
 
 // Compute the inverse FFT for a conjugate-symmetric input sequence of length of
 // 2^order, where 1 < order <= MAX_FFT_ORDER. Transform length is determined by
@@ -85,12 +85,12 @@ int WebRtcSpl_RealForwardFFT(struct RealFFT* self,
 //                            should be shifted left with in order to get
 //                            correct physical values.
 //   -1 - Error with bad arguments (null pointers).
-int WebRtcSpl_RealInverseFFT(struct RealFFT* self,
-                             const int16_t* complex_data_in,
-                             int16_t* real_data_out);
+int WebRtcSpl_RealInverseFFT(struct RealFFT *self,
+    const int16_t *complex_data_in,
+    int16_t *real_data_out);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // COMMON_AUDIO_SIGNAL_PROCESSING_INCLUDE_REAL_FFT_H_
+#endif // COMMON_AUDIO_SIGNAL_PROCESSING_INCLUDE_REAL_FFT_H_

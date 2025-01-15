@@ -1,10 +1,10 @@
 #pragma once
 
 #include "deps/json.hpp"
-#include <memory>
-#include <string>
 #include "provider/request.h"
 #include "provider/response.h"
+#include <memory>
+#include <string>
 
 using json = nlohmann::json;
 

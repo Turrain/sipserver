@@ -3,10 +3,9 @@
 #include "deps/json.hpp"
 #include <map>
 #include <string>
-#include <vector>
 #include <string_view>
+#include <vector>
 using json = nlohmann::json;
-
 
 class Message {
 public:
@@ -14,29 +13,33 @@ public:
     std::string content;
 
     Message() = default; // Add a default constructor
-    Message(const std::string &role, const std::string &content) : role(role), content(content) {}
+    Message(const std::string &role, const std::string &content) :
+        role(role), content(content) { }
 };
-inline void to_json(json& j, const Message& m) {
-    j = json{{"role", m.role}, {"content", m.content}};
+inline void to_json(json &j, const Message &m)
+{
+    j = json { { "role", m.role }, { "content", m.content } };
 }
 
-inline void from_json(const json& j, Message& m) {
+inline void from_json(const json &j, Message &m)
+{
     j.at("role").get_to(m.role);
     j.at("content").get_to(m.content);
 }
 
 typedef std::vector<Message> Messages;
-inline std::string toString(const Messages& messages, std::string_view delimiter = "\n") {
-    if (messages.empty()) return {};
+inline std::string toString(const Messages &messages, std::string_view delimiter = "\n")
+{
+    if (messages.empty())
+        return {};
 
     const size_t total_size = std::transform_reduce(
         messages.begin(), messages.end(),
         delimiter.length() * (messages.size() - 1),
-        std::plus{},
-        [](const auto& msg) {
+        std::plus {},
+        [](const auto &msg) {
             return msg.role.length() + msg.content.length() + 13;
-        }
-    );
+        });
 
     std::string result;
     result.reserve(total_size);
@@ -44,12 +47,9 @@ inline std::string toString(const Messages& messages, std::string_view delimiter
     return std::accumulate(
         messages.begin() + 1, messages.end(),
         result + "Role: " + messages.front().role + ", Content: " + messages.front().content,
-        [&delimiter](std::string acc, const auto& msg) {
-            return std::move(acc).append(delimiter.data(), delimiter.length())
-                   .append("Role: ").append(msg.role)
-                   .append(", Content: ").append(msg.content);
-        }
-    );
+        [&delimiter](std::string acc, const auto &msg) {
+            return std::move(acc).append(delimiter.data(), delimiter.length()).append("Role: ").append(msg.role).append(", Content: ").append(msg.content);
+        });
 }
 
 class Request {
@@ -94,5 +94,4 @@ public:
     json inputs = {};
     std::string user;
     std::string conversation_id;
-    
 };

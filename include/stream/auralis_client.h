@@ -83,7 +83,7 @@ protected:
 
     void on_error(const std::string &error) override
     {
-        std::cout << "Error: " << error << std::endl;
+        LOG_DEBUG("Auralis TTS error: %s", error.c_str());
     }
 
 private:

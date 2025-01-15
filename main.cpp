@@ -3,10 +3,10 @@
 #include <mutex>
 #include <string>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
-
-#include "provider/ollama_provider.h"
-#include "provider/groq_provider.h"
 #include "agent/agent.h"
+#include "provider/groq_provider.h"
+#include "provider/ollama_provider.h"
+#include "provider/tool_handler.h"
 #include "server/server.h"
 
 // TODO: Update a docker files to use cache, or optimize build [o]
@@ -15,11 +15,20 @@
 // TODO: Implement a WebUI (Stepan) [o]
 
 // TODO: Implement a SIP logic: Call info, Call transfer
-// TODO: Event stream
-//
-
+// TODO: Global management system: REWORK
 
 std::mutex Logger::logMutex;
+
+json addNumbers(const json &args)
+{
+    double a = args["a"];
+    double b = args["b"];
+    return {
+        { "status", "success" },
+        { "result", a + b }
+    };
+}
+
 int main()
 {
     ProviderManager *providerManager = ProviderManager::getInstance();
@@ -33,7 +42,7 @@ int main()
     // Load provider configurations
     providerManager->loadConfig(configData); // Pass json object to loadConfig
 
-    //Create AgentManager and register agent factory
+    // Create AgentManager and register agent factory
     AgentManager agentManager;
     json agent1Config;
     agent1Config["provider"] = "Ollama";
@@ -51,6 +60,16 @@ int main()
     auto agent2 = agentManager.createAgent("agent2", "BaseAgent", agent2Config);
     std::string command;
     std::cout << "Enter a command (or 'exit'): ";
+
+    FunctionHandler handler;
+    handler.registerFunction(
+        "add",
+        addNumbers,
+        { ArgSpec { "a", ArgType::Number, true, nullptr },
+            ArgSpec { "b", ArgType::Number, true, nullptr } });
+
+    auto d = handler.handleFunctionCall({ { "function", "add" }, { "a", 1 }, { "b", 2 } });
+    LOG_DEBUG("Result: %s", d.dump().c_str());
     while (std::getline(std::cin, command) && command != "exit") {
         if (command == "help") {
             std::cout << "Available commands:\n";
@@ -66,6 +85,7 @@ int main()
             auto agent = agentManager.getAgent(agentId);
             if (agent) {
                 agent->think(message);
+
             } else {
                 std::cout << "Agent not found.\n";
             }

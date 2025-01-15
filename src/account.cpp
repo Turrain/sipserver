@@ -1,16 +1,15 @@
 // jAccount.cpp
 #include "sip/account.h"
+#include "agent/agent.h"
 #include "sip/call.h"
 #include "utils/logger.h"
-#include "agent/agent.h"
 
-
-Account::Account(std::shared_ptr<AgentManager> agentManager)
-    : m_agentManager(agentManager)
+Account::Account(std::shared_ptr<AgentManager> agentManager) :
+    m_agentManager(agentManager)
 {
 }
 
-void Account::setAgent(const std::string& agentId)
+void Account::setAgent(const std::string &agentId)
 {
     m_agentId = agentId;
     m_agent = m_agentManager->getAgent(agentId);
@@ -26,7 +25,7 @@ void Account::registerRegStateCallback(onRegStateCallback cb)
     regStateCallback = std::move(cb);
 }
 
-void Account::onRegState(pj::OnRegStateParam& prm)
+void Account::onRegState(pj::OnRegStateParam &prm)
 {
     pj::AccountInfo ai = getInfo();
     if (regStateCallback) {
@@ -36,9 +35,9 @@ void Account::onRegState(pj::OnRegStateParam& prm)
     LOG_DEBUG("Registration status: %d", ai.regStatus);
 }
 
-void Account::onIncomingCall(pj::OnIncomingCallParam& iprm)
+void Account::onIncomingCall(pj::OnIncomingCallParam &iprm)
 {
-    auto* call = new Call(*this, iprm.callId);
+    auto *call = new Call(*this, iprm.callId);
     pj::CallInfo ci = call->getInfo();
     LOG_DEBUG("Incoming call from %s", ci.remoteUri.c_str());
     pj::CallOpParam prm;
@@ -47,4 +46,4 @@ void Account::onIncomingCall(pj::OnIncomingCallParam& iprm)
     call->answer(prm);
 }
 
-Account::~Account() {}
+Account::~Account() { }

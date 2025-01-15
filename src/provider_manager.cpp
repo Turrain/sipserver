@@ -1,6 +1,6 @@
 #include "provider/provider_manager.h"
-#include "provider/ollama_provider.h"
 #include "provider/groq_provider.h"
+#include "provider/ollama_provider.h"
 #include "provider/request.h"
 #include "provider/request_factory.h"
 #include "utils/logger.h"

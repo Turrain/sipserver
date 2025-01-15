@@ -2,22 +2,22 @@
 #pragma once
 
 #include "agent/agent.h"
-#include <pjsua2.hpp>
 #include <functional>
-#include <string>
 #include <memory>
+#include <pjsua2.hpp>
+#include <string>
 
 class Agent;
 
-class Account : public pj::Account {
+class Account: public pj::Account {
 public:
     using onRegStateCallback = std::function<void(bool, pj_status_t)>;
     Account(std::shared_ptr<AgentManager> agentManager);
-    void setAgent(const std::string& agentId);
+    void setAgent(const std::string &agentId);
     std::shared_ptr<Agent> getAgent() const;
     void registerRegStateCallback(onRegStateCallback cb);
-    void onRegState(pj::OnRegStateParam& prm) override;
-    void onIncomingCall(pj::OnIncomingCallParam& iprm) override;
+    void onRegState(pj::OnRegStateParam &prm) override;
+    void onIncomingCall(pj::OnIncomingCallParam &iprm) override;
 
     ~Account() override;
 

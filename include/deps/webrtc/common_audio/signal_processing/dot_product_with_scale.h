@@ -29,12 +29,12 @@ extern "C" {
 //                        output will be in Q(-|scaling|)
 //
 // Return value         : The dot product in Q(-scaling)
-int32_t WebRtcSpl_DotProductWithScale(const int16_t* vector1,
-                                      const int16_t* vector2,
-                                      size_t length,
-                                      int scaling);
+int32_t WebRtcSpl_DotProductWithScale(const int16_t *vector1,
+    const int16_t *vector2,
+    size_t length,
+    int scaling);
 
 #ifdef __cplusplus
 }
-#endif  // __cplusplus
-#endif  // COMMON_AUDIO_SIGNAL_PROCESSING_DOT_PRODUCT_WITH_SCALE_H_
+#endif // __cplusplus
+#endif // COMMON_AUDIO_SIGNAL_PROCESSING_DOT_PRODUCT_WITH_SCALE_H_

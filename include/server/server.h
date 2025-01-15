@@ -1,17 +1,17 @@
 
 #include "agent/agent.h"
-#include "sip/manager.h"
 #include "deps/httplib.h"
+#include "sip/manager.h"
 #include <memory>
 
 class Server {
-  public:
+public:
     Server();
     ~Server();
     void run();
     void setupRoutes();
 
-  private:
+private:
     std::shared_ptr<Manager> m_manager;
     std::shared_ptr<AgentManager> m_agentManager;
     httplib::Server m_server;

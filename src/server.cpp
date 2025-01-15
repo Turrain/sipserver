@@ -300,9 +300,9 @@ void Server::setupRoutes()
 
         res.set_content(response.dump(), "application/json");
     });
-    //TODO: Implemtent /events route
-    m_server.Get("/events",[this](const httplib::Request &req, httplib::Response &res){
-         res.set_header("Access-Control-Allow-Origin", "*");
+    // TODO: Implemtent /events route
+    m_server.Get("/events", [this](const httplib::Request &req, httplib::Response &res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
         res.set_chunked_content_provider("text/event-stream", [this](size_t offset, httplib::DataSink &sink) {
             std::this_thread::sleep_for(std::chrono::seconds(5));
             auto text = "data: {\"id\": " + std::to_string(event_id++) + "}\n\n";
@@ -311,7 +311,7 @@ void Server::setupRoutes()
             return true;
         });
         res.set_header("Content-Type", "text/event-stream");
-      });
+    });
 
 #pragma endregion
 }

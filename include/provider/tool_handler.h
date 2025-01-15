@@ -22,15 +22,15 @@ struct ArgSpec {
     json defaultValue;
 };
 
-
 class ArgumentValidator {
 public:
-    static bool validateArg(const json& arg, const ArgSpec& spec) {
+    static bool validateArg(const json &arg, const ArgSpec &spec)
+    {
         if (!arg.contains(spec.name)) {
             return !spec.required;
         }
 
-        const auto& value = arg[spec.name];
+        const auto &value = arg[spec.name];
         switch (spec.type) {
             case ArgType::String:
                 return value.is_string();
@@ -48,11 +48,9 @@ public:
     }
 };
 
-
-
 class FunctionHandler {
 public:
-    using FunctionCallback = std::function<json(const json&)>;
+    using FunctionCallback = std::function<json(const json &)>;
 
     struct FunctionSpec {
         FunctionCallback callback;
@@ -60,14 +58,15 @@ public:
     };
 
     void registerFunction(
-        const std::string& name, 
+        const std::string &name,
         FunctionCallback callback,
-        const std::vector<ArgSpec>& args
-    ) {
-        functions[name] = FunctionSpec{callback, args};
+        const std::vector<ArgSpec> &args)
+    {
+        functions[name] = FunctionSpec { callback, args };
     }
 
-    json handleFunctionCall(const json& input) {
+    json handleFunctionCall(const json &input)
+    {
         try {
             if (!input.contains("function")) {
                 return makeError("No function specified");
@@ -75,25 +74,23 @@ public:
 
             std::string functionName = input["function"];
             auto it = functions.find(functionName);
-            
+
             if (it == functions.end()) {
                 return makeError("Function not found: " + functionName);
             }
 
             // Validate arguments
-            const auto& spec = it->second;
-            for (const auto& argSpec : spec.args) {
+            const auto &spec = it->second;
+            for (const auto &argSpec: spec.args) {
                 if (!ArgumentValidator::validateArg(input, argSpec)) {
                     return makeError(
-                        "Invalid argument: " + argSpec.name + 
-                        " (required: " + std::string(argSpec.required ? "true" : "false") + ")"
-                    );
+                        "Invalid argument: " + argSpec.name + " (required: " + std::string(argSpec.required ? "true" : "false") + ")");
                 }
             }
 
             // Prepare args with defaults
             json args = input;
-            for (const auto& argSpec : spec.args) {
+            for (const auto &argSpec: spec.args) {
                 if (!args.contains(argSpec.name) && argSpec.defaultValue != nullptr) {
                     args[argSpec.name] = argSpec.defaultValue;
                 }
@@ -101,7 +98,7 @@ public:
 
             return spec.callback(args);
 
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             return makeError(e.what());
         }
     }
@@ -109,10 +106,11 @@ public:
 private:
     std::map<std::string, FunctionSpec> functions;
 
-    json makeError(const std::string& message) {
+    json makeError(const std::string &message)
+    {
         return {
-            {"status", "error"},
-            {"message", message}
+            { "status", "error" },
+            { "message", message }
         };
     }
 };

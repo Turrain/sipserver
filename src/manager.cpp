@@ -71,9 +71,8 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
                     registrationPromise.set_value({ true,
                         "Registration successful",
                         status });
-                } 
+                }
             });
-          
 
             account->create(accountConfig);
             if (!agentId.empty()) {

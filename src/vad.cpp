@@ -8,13 +8,13 @@ VAD::VAD()
     voiceBuffer.reserve(MAX_BUFFER_SIZE);
 }
 
-void VAD::processFrame(const pj::MediaFrame& frame)
+void VAD::processFrame(const pj::MediaFrame &frame)
 {
     if (frame.size == 0) {
         return;
     }
     std::lock_guard lock(bufferMutex);
-    const auto* int_data = reinterpret_cast<const int16_t*>(frame.buf.data());
+    const auto *int_data = reinterpret_cast<const int16_t *>(frame.buf.data());
     const bool is_voiced = vad.process(8000, int_data, 160);
     processVAD(frame, is_voiced);
 }
@@ -39,20 +39,20 @@ void VAD::setSpeechStartedCallback(SpeechStartedCallback callback)
     onSpeechStarted = std::move(callback);
 }
 
-std::vector<int16_t> VAD::mergeFrames(const std::vector<pj::MediaFrame>& frames)
+std::vector<int16_t> VAD::mergeFrames(const std::vector<pj::MediaFrame> &frames)
 {
     std::vector<int16_t> result;
     result.reserve(frames.size() * 320);
 
-    for (const auto& frame : frames) {
-        const int16_t* samples = reinterpret_cast<const int16_t*>(frame.buf.data());
+    for (const auto &frame: frames) {
+        const int16_t *samples = reinterpret_cast<const int16_t *>(frame.buf.data());
         result.insert(result.end(), samples, samples + frame.size / 2);
     }
 
     return result;
 }
 
-void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
+void VAD::processVAD(const pj::MediaFrame &frame, bool is_voiced)
 {
     if (!triggered) {
         vadRingBuffer.emplace_back(frame, is_voiced);
@@ -61,7 +61,7 @@ void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
         }
 
         int num_voiced = std::count_if(vadRingBuffer.begin(), vadRingBuffer.end(),
-            [](const auto& pair) { return pair.second; });
+            [](const auto &pair) { return pair.second; });
 
         if (num_voiced > VAD_RATIO * vadRingBuffer.size()) {
             triggered = true;
@@ -69,13 +69,12 @@ void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
             if (onSpeechStarted) {
                 onSpeechStarted();
             }
-            for (const auto& [f, s] : vadRingBuffer) {
+            for (const auto &[f, s]: vadRingBuffer) {
                 processVoicedFrame(f);
             }
             vadRingBuffer.clear();
         }
-    }
-    else {
+    } else {
         processVoicedFrame(frame);
         vadRingBuffer.emplace_back(frame, is_voiced);
         if (vadRingBuffer.size() > PADDING_MS / FRAME_DURATION_MS) {
@@ -83,7 +82,7 @@ void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
         }
 
         int num_unvoiced = std::count_if(vadRingBuffer.begin(), vadRingBuffer.end(),
-            [](const auto& pair) { return !pair.second; });
+            [](const auto &pair) { return !pair.second; });
 
         if (num_unvoiced > VAD_RATIO * vadRingBuffer.size()) {
             if (onVoiceSegment && !voiceBuffer.empty()) {
@@ -97,7 +96,7 @@ void VAD::processVAD(const pj::MediaFrame& frame, bool is_voiced)
     }
 }
 
-void VAD::processVoicedFrame(const pj::MediaFrame& frame)
+void VAD::processVoicedFrame(const pj::MediaFrame &frame)
 {
     if (voiceBuffer.size() < MAX_BUFFER_SIZE) {
         voiceBuffer.push_back(frame);
