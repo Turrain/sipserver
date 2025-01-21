@@ -17,7 +17,6 @@
 // TODO: Implement a SIP logic: Call info, Call transfer
 // TODO: Global management system: REWORK
 
-
 json addNumbers(const json &args)
 {
     double a = args["a"];
@@ -27,7 +26,8 @@ json addNumbers(const json &args)
         { "result", a + b }
     };
 }
-void benchmark_call(LuaProviderManager& manager, const std::string& provider, const std::string& prompt, int num_calls = 1) {
+void benchmark_call(LuaProviderManager &manager, const std::string &provider, const std::string &prompt, int num_calls = 1)
+{
     std::cout << "Benchmarking " << provider << " (" << num_calls << " calls):\n";
 
     for (int i = 0; i < num_calls; ++i) {
@@ -83,8 +83,6 @@ int main()
             ArgSpec { "b", ArgType::Number, true, nullptr } });
 
     auto d = handler.handleFunctionCall({ { "function", "add" }, { "a", 1 }, { "b", 2 } });
-  
-
 
     Configuration config("lua/config.lua");
     LuaProviderManager manager(config);
@@ -92,65 +90,71 @@ int main()
     std::cout << "Default provider: " << config.default_provider() << "\n";
 
     // Call OpenAI provider
-    auto response = manager.call_provider("ollama", "Explain quantum computing");
+     auto response = manager.call_provider("ollama", "Explain quantum computing");
     std::cout << "Ollama Response: " << response.content << "\n";
 
-    // response = manager.call_provider("openai", "Hello ChatGPT!");
-    // std::cout << "OpenAI Response: " << response.content << "\n";
-
-    response = manager.call_provider("groq", "Hello groq!");
+    response = manager.call_provider("openai", "Hello ChatGPT!");
     std::cout << "OpenAI Response: " << response.content << "\n";
 
-     benchmark_call(manager, "ollama", "Explain quantum computing", 5);
+     response = manager.call_provider("groq", "Hello groq!");
+    std::cout << "OpenAI Response: " << response.content << "\n";
 
-    // while (std::getline(std::cin, command) && command != "exit") {
-    //     if (command == "help") {
-    //         std::cout << "Available commands:\n";
-    //         std::cout << "  think <agent_id> <message> - Make the agent think\n";
-    //         std::cout << "  config <agent_id> - View agent's config\n";
-    //         std::cout << "  update <agent_id> <json_config> - Update agent's config\n";
-    //         std::cout << "  exit - Exit the program\n";
-    //     } else if (command.rfind("think ", 0) == 0) {
-    //         std::istringstream iss(command);
-    //         std::string cmd, agentId, message;
-    //         iss >> cmd >> agentId;
-    //         std::getline(iss >> std::ws, message);
-    //         auto agent = agentManager.getAgent(agentId);
-    //         if (agent) {
-    //             agent->think(message);
-    //         } else {
-    //             std::cout << "Agent not found.\n";
-    //         }
-    //     } else if (command.rfind("config ", 0) == 0) {
-    //         std::istringstream iss(command);
-    //         std::string cmd, agentId;
-    //         iss >> cmd >> agentId;
-    //         auto agent = agentManager.getAgent(agentId);
-    //         if (agent) {
-    //             std::cout << agent->config.dump(4) << std::endl;
-    //         } else {
-    //             std::cout << "Agent not found.\n";
-    //         }
-    //     } else if (command.rfind("update ", 0) == 0) {
-    //         std::istringstream iss(command);
-    //         std::string cmd, agentId, jsonConfigStr;
-    //         iss >> cmd >> agentId;
-    //         std::getline(iss >> std::ws, jsonConfigStr);
-    //         try {
-    //             json newConfig = json::parse(jsonConfigStr);
-    //             if (agentManager.updateAgentConfig(agentId, newConfig)) {
-    //                 std::cout << "Agent config updated.\n";
-    //             } else {
-    //                 std::cout << "Agent not found.\n";
-    //             }
-    //         } catch (const json::parse_error &e) {
-    //             std::cout << "Invalid JSON format: " << e.what() << std::endl;
-    //         }
-    //     } else {
-    //         std::cout << "Unknown command. Type 'help' for a list of commands.\n";
-    //     }
-    //     std::cout << "\nEnter a command (or 'exit'): ";
-    // }
+      benchmark_call(manager, "openai", "Explain the concept of time complexity in algorithms", 5);
+
+    while (std::getline(std::cin, command) && command != "exit") {
+        if (command == "help") {
+            std::cout << "Available commands:\n";
+            std::cout << "  think <agent_id> <message> - Make the agent think\n";
+            std::cout << "  config <agent_id> - View agent's config\n";
+            std::cout << "  update <agent_id> <json_config> - Update agent's config\n";
+            std::cout << "  exit - Exit the program\n";
+        } else if (command.rfind("think ", 0) == 0) {
+            std::istringstream iss(command);
+            std::string cmd, agentId, message;
+            iss >> cmd >> agentId;
+            std::getline(iss >> std::ws, message);
+            auto agent = agentManager.getAgent(agentId);
+            if (agent) {
+                auto start = std::chrono::high_resolution_clock::now();
+                agent->think(message);
+                auto end = std::chrono::high_resolution_clock::now();
+                std::cout << "Time taken: "
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                          << "ms\n\n";
+
+            } else {
+                std::cout << "Agent not found.\n";
+            }
+        } else if (command.rfind("config ", 0) == 0) {
+            std::istringstream iss(command);
+            std::string cmd, agentId;
+            iss >> cmd >> agentId;
+            auto agent = agentManager.getAgent(agentId);
+            if (agent) {
+                std::cout << agent->config.dump(4) << std::endl;
+            } else {
+                std::cout << "Agent not found.\n";
+            }
+        } else if (command.rfind("update ", 0) == 0) {
+            std::istringstream iss(command);
+            std::string cmd, agentId, jsonConfigStr;
+            iss >> cmd >> agentId;
+            std::getline(iss >> std::ws, jsonConfigStr);
+            try {
+                json newConfig = json::parse(jsonConfigStr);
+                if (agentManager.updateAgentConfig(agentId, newConfig)) {
+                    std::cout << "Agent config updated.\n";
+                } else {
+                    std::cout << "Agent not found.\n";
+                }
+            } catch (const json::parse_error &e) {
+                std::cout << "Invalid JSON format: " << e.what() << std::endl;
+            }
+        } else {
+            std::cout << "Unknown command. Type 'help' for a list of commands.\n";
+        }
+        std::cout << "\nEnter a command (or 'exit'): ";
+    }
     try {
         Server server;
         server.run();

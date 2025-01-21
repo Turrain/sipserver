@@ -4,7 +4,7 @@ local json = require("dkjson")
 
 openai.config = {
     api_key = "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",
-    api_url = "api.openai.com",
+    api_url = "https://api.openai.com",
     model = "gpt-4o"
 }
 

@@ -36,4 +36,20 @@ file(COPY ${CMAKE_SOURCE_DIR}/lua DESTINATION ${CMAKE_BINARY_DIR})
 target_link_libraries(server PRIVATE pjproject my_webrtc lua5.4 sol2 websocketpp::websocketpp dl )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
-target_compile_options(server PRIVATE -rdynamic -g)
+# Add debug symbols only in Debug build, and set release options
+target_compile_options(server PRIVATE
+    $<$<CONFIG:Debug>:-g>
+)
+
+# Linker flags (rdynamic for symbol visibility in Release)
+target_link_options(server PRIVATE
+    $<$<CONFIG:Release>:-rdynamic>
+)
+
+# Optional: Add Link-Time Optimization (LTO) in Release
+target_compile_options(server PRIVATE
+    $<$<CONFIG:Release>:-flto>
+)
+target_link_options(server PRIVATE
+    $<$<CONFIG:Release>:-flto>
+)
