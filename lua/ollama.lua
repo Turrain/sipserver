@@ -1,11 +1,11 @@
 -- ollama.lua
 local ollama = {}
-local json = require("dkjson")  -- Ensure dkjson.lua is in the Lua path
+local json = require("dkjson")
 
 ollama.config = {
-    api_url = "http://localhost:11434",  -- Default Ollama API endpoint
-    api_path = "/api/generate",          -- Ollama API path for text generation
-    model = "llama3.2:1b"                     -- Default model (can be overridden in config.lua)
+    api_url = "http://localhost:11434",  -- Ollama API endpoint
+    api_path = "/api/chat",
+    model = "llama3.2:1b"  -- Default model (can be overridden in config.lua)
 }
 
 function ollama.request_handler(config, input, options)
@@ -16,8 +16,8 @@ function ollama.request_handler(config, input, options)
     -- Build the request body
     local request_body = {
         model = options.model or config.model,
-        prompt = input,
-        stream = false  -- Set to false for a single response
+        messages = {{role = "user", content = input}},
+        stream = options.stream or false
     }
 
     -- Encode the request body as JSON
@@ -37,17 +37,12 @@ function ollama.request_handler(config, input, options)
         return {content = "Error parsing response", metadata = {}}
     end
 
-    -- Validate the response structure
-    if not res or not res.response then
-        return {content = "Invalid response format", metadata = {}}
-    end
-
     -- Extract the content and metadata
     return {
-        content = res.response or "No content",
+        content = res.message and res.message.content or "No content",
         metadata = {
             model = request_body.model,
-            done = res.done or false
+            total_duration = res.total_duration
         }
     }
 end

@@ -1,8 +1,4 @@
 #include "provider/provider_manager.h"
-#include "provider/groq_provider.h"
-#include "provider/ollama_provider.h"
-#include "provider/request.h"
-#include "provider/request_factory.h"
 #include "utils/logger.h"
 #include <iostream>
 
@@ -11,10 +7,8 @@ std::mutex ProviderManager::mutex;
 
 ProviderManager::ProviderManager()
 {
-    registerProviderFactory("Ollama", std::make_unique<OllamaProviderFactory>());
-    registerProviderFactory("Groq", std::make_unique<GroqProviderFactory>());
-    registerRequestFactory("Ollama", std::make_unique<OllamaRequestFactory>());
-    registerRequestFactory("Groq", std::make_unique<GroqRequestFactory>());
+    Configuration config("lua/config.lua");
+    luaManager = std::make_unique<LuaProviderManager>(config);
 }
 
 ProviderManager *ProviderManager::getInstance()
@@ -26,52 +20,32 @@ ProviderManager *ProviderManager::getInstance()
     return instance;
 }
 
-void ProviderManager::registerProviderFactory(const std::string &name, std::unique_ptr<ProviderFactory> factory)
+ProviderResponse ProviderManager::processRequest(const std::string &providerName, const std::string &input)
 {
-    providerFactories[name] = std::move(factory);
-}
-
-void ProviderManager::registerRequestFactory(const std::string &name, std::unique_ptr<RequestFactory> factory)
-{
-    requestFactories[name] = std::move(factory);
-}
-
-void ProviderManager::loadConfig(const json &configData)
-{
-    if (configData.contains("providers") && configData["providers"].is_object()) {
-        for (auto &[providerName, providerConfig]: configData["providers"].items()) {
-            if (providerFactories.count(providerName)) {
-                auto provider = providerFactories[providerName]->createProvider();
-                provider->configure(providerConfig);
-                providers[providerName] = std::move(provider);
-            } else {
-                std::cerr << "Error: Unknown provider type '" << providerName << "' in config." << std::endl;
-            }
-        }
+    if (!luaManager) {
+        return {"Error: LuaProviderManager not initialized", {}};
     }
-}
-
-std::unique_ptr<Response> ProviderManager::processRequest(const std::unique_ptr<Request> &request)
-{
-    std::string providerName = request->getProviderName();
-    if (providers.count(providerName)) {
-        return providers[providerName]->handleRequest(request);
-    } else {
-        std::cerr << "Error: Provider '" << providerName << "' not found." << std::endl;
-        return nullptr;
-    }
+    return luaManager->call_provider(providerName, input);
 }
 
 bool ProviderManager::hasProvider(const std::string &providerName) const
 {
-    return providers.count(providerName) > 0;
+    // TODO: Add method to LuaProviderManager to check if provider exists
+    try {
+        if (!luaManager) {
+            return false;
+        }
+        // Try to call the provider with an empty input to check if it exists
+        luaManager->call_provider(providerName, "");
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
-std::unique_ptr<Request> ProviderManager::createRequest(const std::string &providerName, Messages message)
+void ProviderManager::updateProviderConfig(const std::string &name, const json &newConfig)
 {
-    if (requestFactories.count(providerName)) {
-        return requestFactories[providerName]->createRequest(message);
+    if (luaManager) {
+        luaManager->update_provider_config(name, newConfig);
     }
-    LOG_ERROR << "Request factory not found for provider: " << providerName;
-    return nullptr;
 }

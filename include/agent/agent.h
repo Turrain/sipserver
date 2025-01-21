@@ -1,7 +1,6 @@
 #pragma once
 #include "deps/json.hpp"
 #include "provider/provider_manager.h"
-#include "provider/request.h"
 #include "utils/logger.h"
 #include <deque>
 #include <memory>
@@ -12,6 +11,13 @@
 #include "stream/whisper_client.h"
 
 using json = nlohmann::json;
+
+struct Message {
+    std::string role;
+    std::string content;
+};
+
+using Messages = std::vector<Message>;
 
 class Agent {
 public:
@@ -34,7 +40,7 @@ public:
     }
 
     virtual ~Agent() = default;
-    virtual void think(const std::string &message) = 0;  // Should I return a value?
+    virtual void think(const std::string &message) = 0;
     virtual void listen(const std::vector<int16_t> &audio_data) = 0;
     virtual void speak(const std::string &text) = 0;
     virtual void configure(const json &newConfig)
@@ -68,13 +74,14 @@ public:
     void setSpeechCallback(SpeechCallbackData callback) override
     {
         speechCallback = callback;
-               auralis_client.set_audio_callback(speechCallback);
+        auralis_client.set_audio_callback(speechCallback);
     }
+
     void think(const std::string &message) override
     {
         LOG_DEBUG << "Agent " << id << " thinks: " << message; 
 
-        history.push_back({ "user", message });
+        history.push_back({"user", message});
 
         std::string providerName = config.value("provider", "");
 
@@ -88,26 +95,26 @@ public:
             return;
         }
 
-        std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, history);
-
-        if (!request) {
-            LOG_ERROR << "Failed to create request for provider " << providerName;
-            return;
+        // Build conversation history string
+        std::string conversation;
+        for (const auto &msg : history) {
+            conversation += msg.role + ": " + msg.content + "\n";
         }
 
-        if (config.contains(providerName)) {
-            request->fromJson(config[providerName]);
-        }
+        auto response = ProviderManager::getInstance()->processRequest(providerName, conversation);
+        
+        if (!response.content.empty()) {
+            LOG_INFO << "Agent " << id << " received response: " << response.content;
 
-        auto response = ProviderManager::getInstance()->processRequest(request);
-
-        if (response) {
-            LOG_INFO << "Agent " << id << " received response: " << response->toString();
-
-            history.push_back({ "assistant", response->toString() });
-            this->speak(response->toString());
+            history.push_back({"assistant", response.content});
+            this->speak(response.content);
         } else {
             LOG_ERROR << "Agent " << id << " failed to process request";
+        }
+
+        // Maintain history size
+        while (history.size() > static_cast<size_t>(stmCapacity)) {
+            history.erase(history.begin());
         }
     }
 
@@ -138,6 +145,7 @@ public:
         LOG_DEBUG << "Agent " << id << " updated config: " << config.dump();
     }
 };
+
 class AgentManager {
 public:
     std::shared_ptr<Agent> createAgent(const std::string &id,
@@ -147,7 +155,6 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
 
         if (agents_.find(id) != agents_.end()) {
-
             return agents_[id];
         }
 
@@ -155,7 +162,6 @@ public:
         if (type == "BaseAgent") {
             agentPtr = std::make_shared<BaseAgent>(id, cfg);
         } else {
-
             agentPtr = std::make_shared<BaseAgent>(id, cfg);
         }
         agents_[id] = agentPtr;
@@ -190,6 +196,7 @@ public:
         }
         return false;
     }
+
     bool removeAgent(const std::string &id)
     {
         std::lock_guard<std::mutex> lock(mutex_);

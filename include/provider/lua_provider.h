@@ -1,5 +1,6 @@
 #pragma once
 #include "lua_config.h"
+#include "utils/logger.h"
 #include <sol/sol.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <any>

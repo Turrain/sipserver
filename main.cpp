@@ -4,9 +4,7 @@
 #include <string>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "agent/agent.h"
-#include "provider/groq_provider.h"
 #include "provider/lua_provider.h"
-#include "provider/ollama_provider.h"
 #include "provider/tool_handler.h"
 #include "server/server.h"
 // TODO: Update a docker files to use cache, or optimize build [o]
@@ -45,31 +43,24 @@ void benchmark_call(LuaProviderManager &manager, const std::string &provider, co
 
 int main()
 {
-    ProviderManager *providerManager = ProviderManager::getInstance();
-    providerManager->registerProviderFactory("Ollama", std::make_unique<OllamaProviderFactory>());
-    providerManager->registerProviderFactory("Groq", std::make_unique<GroqProviderFactory>());
-
-    // Load configuration from file
-    std::ifstream f("config.json");
-    json configData = json::parse(f);
-
-    // Load provider configurations
-    providerManager->loadConfig(configData); // Pass json object to loadConfig
-
-    // Create AgentManager and register agent factory
+    // Create AgentManager
     AgentManager agentManager;
-    // Agent 1: Using Ollama
+
+    // Initialize Lua provider system
+    Configuration config("lua/config.lua");
+    LuaProviderManager manager(config);
+
+    // Create agents using Lua providers
     json agent1Config;
-    agent1Config["provider"] = "Ollama";
-    agent1Config["Ollama"]["model"] = "llama3.2:1b"; // Specify the Ollama model
-    agent1Config["Ollama"]["stream"] = false; // Example of provider-specific config
+    agent1Config["provider"] = "ollama";
+    agent1Config["model"] = "llama3.2:1b";
+    agent1Config["stream"] = false;
     auto agent1 = agentManager.createAgent("agent1", "BaseAgent", agent1Config);
 
-    // Agent 2: Using Groq
     json agent2Config;
-    agent2Config["provider"] = "Groq";
-    agent2Config["Groq"]["model"] = "gemma2-9b-it";
-    agent2Config["Groq"]["temperature"] = 0.8; // Example of provider-specific config
+    agent2Config["provider"] = "groq";
+    agent2Config["model"] = "mixtral-8x7b-32768";
+    agent2Config["temperature"] = 0.8;
     auto agent2 = agentManager.createAgent("agent2", "BaseAgent", agent2Config);
 
     std::string command;
@@ -84,22 +75,7 @@ int main()
 
     auto d = handler.handleFunctionCall({ { "function", "add" }, { "a", 1 }, { "b", 2 } });
 
-    Configuration config("lua/config.lua");
-    LuaProviderManager manager(config);
-
     std::cout << "Default provider: " << config.default_provider() << "\n";
-
-    // Call OpenAI provider
-     auto response = manager.call_provider("ollama", "Explain quantum computing");
-    std::cout << "Ollama Response: " << response.content << "\n";
-
-    response = manager.call_provider("openai", "Hello ChatGPT!");
-    std::cout << "OpenAI Response: " << response.content << "\n";
-
-     response = manager.call_provider("groq", "Hello groq!");
-    std::cout << "OpenAI Response: " << response.content << "\n";
-
-      benchmark_call(manager, "openai", "Explain the concept of time complexity in algorithms", 5);
 
     while (std::getline(std::cin, command) && command != "exit") {
         if (command == "help") {

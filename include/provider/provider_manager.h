@@ -1,21 +1,12 @@
 #pragma once
 
-#include "deps/json.hpp"
-#include "provider/provider.h"
-#include "provider/request.h"
-#include "provider/request_factory.h"
-#include <map>
+#include "provider/lua_provider.h"
 #include <memory>
-#include <mutex>
 #include <string>
-
-using json = nlohmann::json;
 
 class ProviderManager {
 private:
-    std::map<std::string, std::unique_ptr<Provider>> providers;
-    std::map<std::string, std::unique_ptr<RequestFactory>> requestFactories;
-    std::map<std::string, std::unique_ptr<ProviderFactory>> providerFactories;
+    std::unique_ptr<LuaProviderManager> luaManager;
     static ProviderManager *instance;
     static std::mutex mutex;
 
@@ -23,13 +14,10 @@ private:
 
 public:
     static ProviderManager *getInstance();
-    void registerProviderFactory(const std::string &name, std::unique_ptr<ProviderFactory> factory);
-    void registerRequestFactory(const std::string &name, std::unique_ptr<RequestFactory> factory);
-    void loadConfig(const json &configData);
-    std::unique_ptr<Response> processRequest(const std::unique_ptr<Request> &request);
+    ProviderResponse processRequest(const std::string &providerName, const std::string &input);
     bool hasProvider(const std::string &providerName) const;
-    std::unique_ptr<Request> createRequest(const std::string &providerName, Messages messages);
-    ProviderManager(const ProviderManager &)
-        = delete;
+    void updateProviderConfig(const std::string &name, const json &newConfig);
+    
+    ProviderManager(const ProviderManager &) = delete;
     ProviderManager &operator=(const ProviderManager &) = delete;
 };
