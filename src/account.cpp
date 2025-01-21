@@ -31,15 +31,15 @@ void Account::onRegState(pj::OnRegStateParam &prm)
     if (regStateCallback) {
         regStateCallback(ai.regIsActive, ai.regStatus);
     }
-    LOG_DEBUG("Registration state: %d", ai.regIsActive);
-    LOG_DEBUG("Registration status: %d", ai.regStatus);
+    LOG_DEBUG << "Registration status: " << ai.regStatus;
+    LOG_DEBUG << "Registration active: " << ai.regIsActive;
 }
 
 void Account::onIncomingCall(pj::OnIncomingCallParam &iprm)
 {
     auto *call = new Call(*this, iprm.callId);
     pj::CallInfo ci = call->getInfo();
-    LOG_DEBUG("Incoming call from %s", ci.remoteUri.c_str());
+    LOG_DEBUG << "Incoming call from " << ci.remoteUri;
     pj::CallOpParam prm;
     prm.statusCode = PJSIP_SC_OK;
     call->direction = Call::INCOMING;

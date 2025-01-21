@@ -7,7 +7,7 @@ cfg = {
     providers = {
         openai = {
             enabled = true,  -- Enable or disable this provider
-            script_path = "openai.lua",  -- Path to the provider's Lua script
+            script_path = "lua/openai.lua",  -- Path to the provider's Lua script
             config_overrides = {  -- Override default configuration values
                 api_key = "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",
                 api_url = "api.openai.com",
@@ -24,14 +24,14 @@ cfg = {
         --},
         groq = {
             enabled = true,
-            script_path = "groq.lua",
+            script_path = "lua/groq.lua",
             config_overrides = {}
         },
         ollama = {
             enabled = true,
-            script_path = "ollama.lua",
+            script_path = "lua/ollama.lua",
             config_overrides = {
-                model = "llama2:13b"
+                model = "llama3.2:1b"
             }
         }
     }

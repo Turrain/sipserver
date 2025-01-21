@@ -23,7 +23,7 @@ public:
     void synthesize_text(const std::string &text, const std::string &voice = "default", bool stream = true, float temperature = 0.5)
     {
         if (!connected) {
-            LOG_ERROR("Not connected to Auralis TTS server");
+            LOG_ERROR << "Auralis TTS client is not connected";
             return;
         }
 
@@ -36,7 +36,7 @@ public:
             request["type"] = "synthesize";
             client.send(connection, request.dump(), websocketpp::frame::opcode::text);
         } catch (const std::exception &e) {
-            LOG_ERROR("Error synthesizing text: %s", e.what());
+            LOG_ERROR << "Error sending text to Auralis TTS: " << e.what();
         }
     }
 
@@ -49,7 +49,7 @@ protected:
                 const auto &payload = msg->get_payload();
                 std::vector<int16_t> audio_data(payload.size() / sizeof(int16_t));
                 std::memcpy(audio_data.data(), payload.data(), payload.size());
-                LOG_DEBUG("Received %d audio samples", audio_data.size());
+                LOG_DEBUG << "Received audio data: " << audio_data.size() << " samples";
 
                 if (audio_callback) {
                     audio_callback(audio_data);
@@ -83,7 +83,7 @@ protected:
 
     void on_error(const std::string &error) override
     {
-        LOG_DEBUG("Auralis TTS error: %s", error.c_str());
+        LOG_DEBUG << "Auralis TTS error: " << error;
     }
 
 private:

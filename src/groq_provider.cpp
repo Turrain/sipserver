@@ -14,13 +14,13 @@ void GroqProvider::configure(const json &config)
 {
     apiKey = config.value("apiKey", "");
     baseUrl = config.value("baseUrl", "api.groq.com");
-    LOG_INFO("GroqProvider configured with baseUrl: %s", baseUrl.c_str());
+    LOG_INFO << "GroqProvider configured with API key: " << apiKey;
 }
 
 std::unique_ptr<Response> GroqProvider::handleRequest(const std::unique_ptr<Request> &request)
 {
     auto groqRequest = dynamic_cast<GroqRequest2 *>(request.get());
-    LOG_DEBUG("GroqProvider: Received request: %s", groqRequest->toJson().dump().c_str());
+    LOG_DEBUG << "Handling Groq request: " << groqRequest->toJson().dump();
 
     httplib::SSLClient cli(baseUrl.c_str(), 443);
     cli.enable_server_certificate_verification(true);
@@ -32,7 +32,7 @@ std::unique_ptr<Response> GroqProvider::handleRequest(const std::unique_ptr<Requ
     auto res = cli.Post("/openai/v1/chat/completions", headers, json_dump, "application/json");
     if (res) {
         if (res->status == 200) {
-            LOG_DEBUG("Groq Response: %s", res->body.c_str());
+            LOG_DEBUG << "Groq response: " << res->body;
             json responseJson = json::parse(res->body);
             auto response = std::make_unique<GroqResponse>();
 
@@ -64,18 +64,18 @@ std::unique_ptr<Response> GroqProvider::handleRequest(const std::unique_ptr<Requ
 
             return response;
         } else {
-            LOG_ERROR("Groq Error: %d", res->status);
+            LOG_ERROR << "Groq request failed: " << res->status << " " << res->body;
             return std::make_unique<GroqResponse>(res->body);
         }
     } else {
-        LOG_ERROR("Groq Connection Error");
+        LOG_ERROR << "Failed to connect to Groq: " << res.error();
         return std::make_unique<GroqResponse>("Failed to connect to Groq");
     }
 }
 
 std::unique_ptr<Provider> GroqProviderFactory::createProvider()
 {
-    LOG_DEBUG("Creating GroqProvider");
+    LOG_DEBUG << "Creating GroqProvider";
     return std::make_unique<GroqProvider>();
 }
 

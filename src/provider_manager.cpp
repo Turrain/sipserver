@@ -72,6 +72,6 @@ std::unique_ptr<Request> ProviderManager::createRequest(const std::string &provi
     if (requestFactories.count(providerName)) {
         return requestFactories[providerName]->createRequest(message);
     }
-    LOG_ERROR("No request factory found for provider: %s", providerName.c_str());
+    LOG_ERROR << "Request factory not found for provider: " << providerName;
     return nullptr;
 }

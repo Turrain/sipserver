@@ -54,7 +54,7 @@ protected:
 
     void on_error(const std::string &error) override
     {
-        LOG_DEBUG("WhisperClient error: %s", error.c_str());
+        LOG_DEBUG << "WhisperClient error: " << error;
     }
 
 private:

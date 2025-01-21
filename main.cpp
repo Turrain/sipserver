@@ -17,7 +17,6 @@
 // TODO: Implement a SIP logic: Call info, Call transfer
 // TODO: Global management system: REWORK
 
-std::mutex Logger::logMutex;
 
 json addNumbers(const json &args)
 {
@@ -27,6 +26,21 @@ json addNumbers(const json &args)
         { "status", "success" },
         { "result", a + b }
     };
+}
+void benchmark_call(LuaProviderManager& manager, const std::string& provider, const std::string& prompt, int num_calls = 1) {
+    std::cout << "Benchmarking " << provider << " (" << num_calls << " calls):\n";
+
+    for (int i = 0; i < num_calls; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+        auto response = manager.call_provider(provider, prompt);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        std::cout << "Call " << i + 1 << ":\n";
+        std::cout << "Response: " << response.content << "\n";
+        std::cout << "Time taken: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+                  << "ms\n\n";
+    }
 }
 
 int main()
@@ -69,10 +83,10 @@ int main()
             ArgSpec { "b", ArgType::Number, true, nullptr } });
 
     auto d = handler.handleFunctionCall({ { "function", "add" }, { "a", 1 }, { "b", 2 } });
-    LOG_DEBUG("Result: %s", d.dump().c_str());
+  
 
 
-    Configuration config("config.lua");
+    Configuration config("lua/config.lua");
     LuaProviderManager manager(config);
 
     std::cout << "Default provider: " << config.default_provider() << "\n";
@@ -81,11 +95,13 @@ int main()
     auto response = manager.call_provider("ollama", "Explain quantum computing");
     std::cout << "Ollama Response: " << response.content << "\n";
 
-    response = manager.call_provider("openai", "Hello ChatGPT!");
-    std::cout << "OpenAI Response: " << response.content << "\n";
+    // response = manager.call_provider("openai", "Hello ChatGPT!");
+    // std::cout << "OpenAI Response: " << response.content << "\n";
 
     response = manager.call_provider("groq", "Hello groq!");
     std::cout << "OpenAI Response: " << response.content << "\n";
+
+     benchmark_call(manager, "ollama", "Explain quantum computing", 5);
 
     // while (std::getline(std::cin, command) && command != "exit") {
     //     if (command == "help") {

@@ -27,7 +27,7 @@ Manager::Manager(std::shared_ptr<AgentManager> manager) :
 
         // Start library
         m_endpoint.libStart();
-        LOG_DEBUG("PJSIP Endpoint started");
+        LOG_DEBUG << "PJSIP initialized";
         // Start worker thread
         m_workerThread = std::make_unique<std::thread>(&Manager::workerThreadMain, this);
     } catch (pj::Error &err) {

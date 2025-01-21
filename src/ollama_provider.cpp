@@ -13,13 +13,13 @@ std::string OllamaProvider::getName() const { return "Ollama"; }
 void OllamaProvider::configure(const json &config)
 {
     baseUrl = config.value("baseUrl", "http://localhost:11434");
-    LOG_INFO("OllamaProvider configured with baseUrl: %s", baseUrl.c_str());
+    LOG_INFO << "OllamaProvider configured with base URL: " << baseUrl;
 }
 
 std::unique_ptr<Response> OllamaProvider::handleRequest(const std::unique_ptr<Request> &request)
 {
     auto ollamaRequest = dynamic_cast<OllamaRequest *>(request.get());
-    LOG_DEBUG("OllamaProvider: Received request: %s", ollamaRequest->toJson().dump().c_str());
+    LOG_DEBUG << "Handling Ollama request: " << ollamaRequest->toJson().dump();
 
     httplib::Client cli(baseUrl.c_str());
     httplib::Headers headers = {
@@ -29,7 +29,7 @@ std::unique_ptr<Response> OllamaProvider::handleRequest(const std::unique_ptr<Re
     auto res = cli.Post("/api/generate", headers, ollamaRequest->toJson().dump(), "application/json");
     if (res) {
         if (res->status == 200) {
-            LOG_DEBUG("Ollama Response: %s", res->body.c_str());
+            LOG_DEBUG << "Ollama response: " << res->body;
 
             json responseJson = json::parse(res->body);
             auto response = std::make_unique<OllamaResponse>(
@@ -41,14 +41,14 @@ std::unique_ptr<Response> OllamaProvider::handleRequest(const std::unique_ptr<Re
 
             return response;
         } else {
-            LOG_ERROR("Ollama Error: %d", res->status);
+            LOG_ERROR << "Ollama request failed: " << res->status << " " << res->body;
             json errorJson = json::parse(res->body);
             auto errorResponse = std::make_unique<OllamaResponse>("");
             errorResponse->error = errorJson.value("error", "Unknown error");
             return errorResponse;
         }
     } else {
-        LOG_ERROR("Ollama Connection Error");
+        LOG_ERROR << "Failed to connect to Ollama: " << res.error();
         auto errorResponse = std::make_unique<OllamaResponse>("");
         errorResponse->error = "Failed to connect to Ollama";
         return errorResponse;
@@ -57,7 +57,7 @@ std::unique_ptr<Response> OllamaProvider::handleRequest(const std::unique_ptr<Re
 
 std::unique_ptr<Provider> OllamaProviderFactory::createProvider()
 {
-    LOG_DEBUG("Creating OllamaProvider");
+    LOG_DEBUG << "Creating OllamaProvider";
     return std::make_unique<OllamaProvider>();
 }
 

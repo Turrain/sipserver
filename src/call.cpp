@@ -7,7 +7,7 @@
 void Call::onCallState(pj::OnCallStateParam &prm)
 {
     pj::CallInfo ci = getInfo();
-    LOG_DEBUG("onCallState: Call %d state: %d", ci.id, ci.state);
+    LOG_DEBUG << "Call " << ci.id << " state: " << ci.stateText;
 }
 
 void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
@@ -15,7 +15,7 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
 
     auto agent = getAgent();
     pj::CallInfo ci = getInfo();
-    LOG_DEBUG("onCallMediaState: Call %d media state: %d", ci.id, ci.state);
+    LOG_DEBUG << "Call " << ci.id << " media state: " << ci.media[0].status;
 
     for (int i = 0; i < ci.media.size(); i++) {
         if (ci.media[i].status == PJSUA_CALL_MEDIA_ACTIVE && ci.media[i].type == PJMEDIA_TYPE_AUDIO && getMedia(i)) {
@@ -25,7 +25,7 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
             auto portInfo = aud_med->getPortInfo();
             auto format = portInfo.format;
             if (direction == Call::INCOMING) {
-                LOG_DEBUG("AUDIO INCOMING");
+                LOG_DEBUG << "Incoming call from " << ci.remoteUri;
                 agent->speak("Привет, я твой ассистент.");
 
                 //   agent->sendText("Привет, я твой ассистент.");
@@ -54,13 +54,13 @@ Call::Call(Account &acc, int call_id) :
     
     mediaPort.vad.setVoiceSegmentCallback(
         [this](const std::vector<pj::MediaFrame> &frames) {
-            LOG_DEBUG("Voice segment");
+            LOG_DEBUG << "Voice segment detected";
             this->getAgent()->listen(VAD::mergeFrames(frames));
         });
 
     mediaPort.vad.setSpeechStartedCallback(
         [this]() {
-            LOG_DEBUG("Speech started");
+            LOG_DEBUG << "Speech started";
             mediaPort.clearQueue();
         });
 

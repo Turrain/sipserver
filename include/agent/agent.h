@@ -43,7 +43,7 @@ public:
         if (newConfig.contains("stm_capacity")) {
             stmCapacity = newConfig["stm_capacity"];
         }
-        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
+        LOG_DEBUG << "Agent " << id << " updated config: " << config.dump();
     }
 };
 
@@ -60,7 +60,7 @@ public:
         auralis_client.connect("ws://localhost:9091");
 
         whisper_client.set_transcription_callback([this](const std::string &text) {
-            LOG_INFO("Agent %s received transcription: %s", id.c_str(), text.c_str());
+            LOG_INFO << "Agent " << id << " received transcription: " << text;
             this->think(text);
         });
     }
@@ -72,26 +72,26 @@ public:
     }
     void think(const std::string &message) override
     {
-        LOG_DEBUG("BaseAgent %s thinks: %s", id.c_str(), message.c_str());
+        LOG_DEBUG << "Agent " << id << " thinks: " << message; 
 
         history.push_back({ "user", message });
 
         std::string providerName = config.value("provider", "");
 
         if (providerName.empty()) {
-            LOG_ERROR("Agent %s does not have a provider specified in its configuration.", id.c_str());
+            LOG_ERROR << "Provider not specified for agent " << id;
             return;
         }
 
         if (!ProviderManager::getInstance()->hasProvider(providerName)) {
-            LOG_ERROR("Provider '%s' specified for agent %s is not available.", providerName.c_str(), id.c_str());
+            LOG_ERROR << "Provider " << providerName << " not found";
             return;
         }
 
         std::unique_ptr<Request> request = ProviderManager::getInstance()->createRequest(providerName, history);
 
         if (!request) {
-            LOG_ERROR("Failed to create a request for provider: %s", providerName.c_str());
+            LOG_ERROR << "Failed to create request for provider " << providerName;
             return;
         }
 
@@ -102,28 +102,28 @@ public:
         auto response = ProviderManager::getInstance()->processRequest(request);
 
         if (response) {
-            LOG_INFO("Agent %s received response: %s", id.c_str(), response->toString().c_str());
+            LOG_INFO << "Agent " << id << " received response: " << response->toString();
 
             history.push_back({ "assistant", response->toString() });
             this->speak(response->toString());
         } else {
-            LOG_ERROR("Agent %s did not receive a response.", id.c_str());
+            LOG_ERROR << "Agent " << id << " failed to process request";
         }
     }
 
     void listen(const std::vector<int16_t> &audio_data) override
     {
-        LOG_DEBUG("BaseAgent %s listens to audio data", id.c_str());
+        LOG_DEBUG << "Agent " << id << " received audio data";
         whisper_client.send_audio(audio_data);
     }
 
     void speak(const std::string &text) override
     {
-        LOG_DEBUG("BaseAgent %s speaks", id.c_str());
+        LOG_DEBUG << "Agent " << id << " speaks: " << text << " (provider: auralis)";
 
         // Configure status callback for logging
         auralis_client.set_status_callback([this](const std::string &status) {
-            LOG_DEBUG("Agent %s TTS status: %s", id.c_str(), status.c_str());
+            LOG_DEBUG << "Agent " << id << " received status: " << status;
         });
 
         // Send text for synthesis
@@ -135,7 +135,7 @@ public:
     void configure(const json &newConfig) override
     {
         config.merge_patch(newConfig);
-        LOG_DEBUG("Agent %s updated config: %s", id.c_str(), config.dump().c_str());
+        LOG_DEBUG << "Agent " << id << " updated config: " << config.dump();
     }
 };
 class AgentManager {
