@@ -12,7 +12,7 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
 endif()
 include(${CMAKE_TOOLCHAIN_FILE})
 find_package(websocketpp CONFIG REQUIRED)
-
+find_package(sol2 CONFIG REQUIRED)
 
 set(COMMON_COMPILE_DEFINITIONS
         WEBRTC_LINUX
@@ -32,6 +32,6 @@ add_executable(server main.cpp ${SOURCES})
 #add_library(server STATIC ${SOURCES})
 file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})
 
-target_link_libraries(server PRIVATE pjproject my_webrtc websocketpp::websocketpp )
+target_link_libraries(server PRIVATE pjproject my_webrtc lua5.4 sol2 websocketpp::websocketpp )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})

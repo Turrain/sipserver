@@ -121,8 +121,6 @@ public:
     {
         LOG_DEBUG("BaseAgent %s speaks", id.c_str());
 
- 
-
         // Configure status callback for logging
         auralis_client.set_status_callback([this](const std::string &status) {
             LOG_DEBUG("Agent %s TTS status: %s", id.c_str(), status.c_str());

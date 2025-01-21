@@ -50,3 +50,4 @@ public:
     std::string toString() const override;
     json toJson() const override;
 };
+

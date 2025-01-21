@@ -6,6 +6,10 @@
       "Groq": {
         "apiKey": "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",
         "baseUrl": "api.groq.com"
+      },
+      "Dify": {
+        "apiKey": "app-CKrWchFbC6HWuwUPIDzJuWjR",
+        "baseUrl": "http://sandbox.aitomaton.online/v1"
       }
   
     },

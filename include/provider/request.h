@@ -88,10 +88,3 @@ public:
     void fromJson(const json &j) override;
 };
 
-class DifyRequest: public Request {
-public:
-    std::string response_mode = "blocking";
-    json inputs = {};
-    std::string user;
-    std::string conversation_id;
-};

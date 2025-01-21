@@ -14,13 +14,18 @@ cfg = {
                 model = "gpt-4o"
             }
         },
-        dify = {
+        --dify = {
+        --    enabled = false,
+        --    script_path = "dify.lua",
+        --    config_overrides = {
+        --        api_key = "your-dify-api-key",
+        --        api_url = "https://api.dify.ai/v1"
+        --    }
+        --},
+        groq = {
             enabled = true,
-            script_path = "dify.lua",
-            config_overrides = {
-                api_key = "your-dify-api-key",
-                api_url = "https://api.dify.ai/v1"
-            }
+            script_path = "groq.lua",
+            config_overrides = {}
         },
         ollama = {
             enabled = true,

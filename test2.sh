@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test configuration
-SERVER="http://127.0.0.1:18080"
+SERVER="http://localhost:18080"
 CONTENT_TYPE="Content-Type: application/json"
 
 # Colors for output
@@ -19,6 +19,8 @@ print_result() {
 }
 
 echo "Starting API Tests..."
+ACCOUNT_RESPONSE=$(curl -s -X GET $SERVER/status )
+print_result $? "Status"
 
 # Test 1: Create new account
 echo -e "\nTesting Account Creation..."
