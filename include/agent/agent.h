@@ -12,10 +12,6 @@
 
 using json = nlohmann::json;
 
-struct Message {
-    std::string role;
-    std::string content;
-};
 
 using Messages = std::vector<Message>;
 

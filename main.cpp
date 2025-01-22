@@ -5,7 +5,6 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "agent/agent.h"
 #include "provider/lua_provider.h"
-#include "provider/tool_handler.h"
 #include "server/server.h"
 // TODO: Update a docker files to use cache, or optimize build [o]
 // TODO: Make a tests for the project [x]
@@ -15,15 +14,6 @@
 // TODO: Implement a SIP logic: Call info, Call transfer
 // TODO: Global management system: REWORK
 
-json addNumbers(const json &args)
-{
-    double a = args["a"];
-    double b = args["b"];
-    return {
-        { "status", "success" },
-        { "result", a + b }
-    };
-}
 void benchmark_call(LuaProviderManager &manager, const std::string &provider, const std::string &prompt, int num_calls = 1)
 {
     std::cout << "Benchmarking " << provider << " (" << num_calls << " calls):\n";
@@ -45,10 +35,10 @@ int main()
 {
     // Create AgentManager
     AgentManager agentManager;
-
+   
     // Initialize Lua provider system
     Configuration config("lua/config.lua");
-    LuaProviderManager manager(config);
+    ProviderManager::getInstance()->initialize(config);
 
     // Create agents using Lua providers
     json agent1Config;
@@ -65,15 +55,6 @@ int main()
 
     std::string command;
     std::cout << "Enter a command (or 'exit'): ";
-
-    FunctionHandler handler;
-    handler.registerFunction(
-        "add",
-        addNumbers,
-        { ArgSpec { "a", ArgType::Number, true, nullptr },
-            ArgSpec { "b", ArgType::Number, true, nullptr } });
-
-    auto d = handler.handleFunctionCall({ { "function", "add" }, { "a", 1 }, { "b", 2 } });
 
     std::cout << "Default provider: " << config.default_provider() << "\n";
 

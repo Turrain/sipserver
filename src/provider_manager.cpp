@@ -2,50 +2,16 @@
 #include "utils/logger.h"
 #include <iostream>
 
-ProviderManager *ProviderManager::instance = nullptr;
+// Static member definitions
+ProviderManager* ProviderManager::instance = nullptr;
 std::mutex ProviderManager::mutex;
 
-ProviderManager::ProviderManager()
-{
-    Configuration config("lua/config.lua");
-    luaManager = std::make_unique<LuaProviderManager>(config);
-}
-
-ProviderManager *ProviderManager::getInstance()
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    if (instance == nullptr) {
-        instance = new ProviderManager();
-    }
-    return instance;
-}
-
-ProviderResponse ProviderManager::processRequest(const std::string &providerName, const std::string &input)
-{
-    if (!luaManager) {
-        return {"Error: LuaProviderManager not initialized", {}};
-    }
-    return luaManager->call_provider(providerName, input);
-}
-
-bool ProviderManager::hasProvider(const std::string &providerName) const
-{
-    // TODO: Add method to LuaProviderManager to check if provider exists
+void ProviderManager::initialize(Configuration &config) {
     try {
-        if (!luaManager) {
-            return false;
-        }
-        // Try to call the provider with an empty input to check if it exists
-        luaManager->call_provider(providerName, "");
-        return true;
-    } catch (...) {
-        return false;
-    }
-}
-
-void ProviderManager::updateProviderConfig(const std::string &name, const json &newConfig)
-{
-    if (luaManager) {
-        luaManager->update_provider_config(name, newConfig);
+        luaManager = std::make_unique<LuaProviderManager>(config);
+        LOG_DEBUG << "Provider manager initialized successfully";
+    } catch (const std::exception &e) {
+        LOG_ERROR << "Failed to initialize provider manager: " << e.what();
+        luaManager.reset();
     }
 }

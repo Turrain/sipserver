@@ -7,10 +7,43 @@
 #include <httplib.h>
 #include <memory>
 #include <unordered_map>
+#include <vector>
+#include "deps/json.hpp"
+
+using json = nlohmann::json;
+
+class Message {
+public:
+    std::string role;
+    std::string content;
+
+    Message() = default;
+    Message(const std::string &role, const std::string &content) :
+        role(role), content(content) { }
+};
+
+inline void to_json(json &j, const Message &m) {
+    j = json { { "role", m.role }, { "content", m.content } };
+}
+
+inline void from_json(const json &j, Message &m) {
+    j.at("role").get_to(m.role);
+    j.at("content").get_to(m.content);
+}
+
+using Messages = std::vector<Message>;
 
 struct ProviderResponse {
     std::string content;
     std::unordered_map<std::string, std::any> metadata;
+
+    bool operator==(const ProviderResponse& other) const {
+        return content == other.content;
+    }
+
+    bool operator!=(const ProviderResponse& other) const {
+        return !(*this == other);
+    }
 };
 
 class LuaProvider {
@@ -162,6 +195,10 @@ public:
     void register_provider(const std::string &name, sol::table config, sol::function request_fn)
     {
         providers_[name] = std::make_unique<LuaProvider>(std::move(config), std::move(request_fn));
+    }
+
+    bool has_provider(const std::string &name) const {
+        return providers_.find(name) != providers_.end();
     }
 
 private:
