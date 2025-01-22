@@ -6,7 +6,7 @@
 ProviderManager* ProviderManager::instance = nullptr;
 std::mutex ProviderManager::mutex;
 
-void ProviderManager::initialize(Configuration &config) {
+void ProviderManager::initialize(core::Configuration &config) {
     try {
         luaManager = std::make_unique<LuaProviderManager>(config);
         LOG_DEBUG << "Provider manager initialized successfully";

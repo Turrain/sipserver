@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/configuration.h"
 #include "provider/lua_provider.h"
 #include <memory>
 #include <string>
@@ -36,7 +37,7 @@ public:
         }
     }
     
-    void initialize(Configuration &config) ;
+    void initialize(core::Configuration &config);
     
     ProviderManager(const ProviderManager &) = delete;
     ProviderManager &operator=(const ProviderManager &) = delete;

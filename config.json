@@ -1,26 +1,31 @@
 {
+    "default_provider": "openai",
     "providers": {
-      "Ollama": {
-        "baseUrl": "http://localhost:11434"
-      },
-      "Groq": {
-        "apiKey": "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",
-        "baseUrl": "api.groq.com"
-      },
-      "Dify": {
-        "apiKey": "app-CKrWchFbC6HWuwUPIDzJuWjR",
-        "baseUrl": "http://sandbox.aitomaton.online/v1"
-      }
-  
-    },
-    "agents": {
-        "agent1": {
-            "provider": "Ollama",
-            "model": "llama3.2:1b"
+        "openai": {
+            "enabled": true,
+            "script_path": "lua/openai.lua",
+            "config_overrides": {
+                "api_key": "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",
+                "api_url": "api.openai.com",
+                "model": "gpt-4o"
+            }
         },
-        "agent2": {
-            "provider": "Groq",
-            "model": "gemma2-9b-it"
+        "groq": {
+            "enabled": true,
+            "script_path": "lua/groq.lua",
+            "config_overrides": {
+                "api_key": "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",
+                "api_url": "https://api.groq.com",
+                "api_path": "/openai/v1/chat/completions",
+                "model": "mixtral-8x7b-32768"
+            }
+        },
+        "ollama": {
+            "enabled": true,
+            "script_path": "lua/ollama.lua",
+            "config_overrides": {
+                "model": "llama3.2:1b"
+            }
         }
     }
-  }
+}

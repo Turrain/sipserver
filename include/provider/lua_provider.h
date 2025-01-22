@@ -1,5 +1,5 @@
 #pragma once
-#include "lua_config.h"
+#include "core/configuration.h"
 #include "utils/logger.h"
 #include <sol/sol.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -169,7 +169,7 @@ private:
 
 class LuaProviderManager {
 public:
-    explicit LuaProviderManager(Configuration &config) :
+    explicit LuaProviderManager(core::Configuration &config) :
         config_(config)
     {
         initialize_lua_bindings();
@@ -188,7 +188,7 @@ public:
     {
         if (providers_.find(name) != providers_.end()) {
             providers_[name]->update_config(new_config);
-            config_.update_provider_config(name, new_config);
+            config_.set_provider_field(name, "config_overrides", new_config);
         }
     }
 
@@ -261,14 +261,14 @@ private:
 
     void load_providers()
     {
-        for (const auto &[name, pc]: config_.providers()) {
-            if (!pc.enabled)
+        json providers = config_.get<json>("providers");
+        for (const auto &[name, provider] : providers.items()) {
+            if (!provider["enabled"].get<bool>())
                 continue;
 
             try {
-                lua_.script_file(pc.script_path);
+                lua_.script_file(provider["script_path"].get<std::string>());
                 LOG_DEBUG << "Loaded provider: " << name;
-
             } catch (const sol::error &e) {
                 LOG_ERROR << "Error loading provider " << name << ": " << e.what();
             }
@@ -277,5 +277,5 @@ private:
 
     sol::state lua_;
     std::unordered_map<std::string, std::unique_ptr<LuaProvider>> providers_;
-    Configuration &config_;
+    core::Configuration &config_;
 };

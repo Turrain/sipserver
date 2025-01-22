@@ -4,6 +4,7 @@
 #include <string>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "agent/agent.h"
+#include "core/configuration.h"
 #include "provider/lua_provider.h"
 #include "server/server.h"
 // TODO: Update a docker files to use cache, or optimize build [o]
@@ -31,13 +32,43 @@ void benchmark_call(LuaProviderManager &manager, const std::string &provider, co
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+
+    json defaults = R"({
+        "version": 1,
+        "default_provider": "openai",
+        "providers": {
+            "openai": {
+                "enabled": true,
+                "script_path": "lua/openai.lua",
+                "config_overrides": {
+                    "model": "gpt-4"
+                }
+            }
+        }
+    })"_json;
+    
+    core::Configuration config("config.json", defaults, false);
+    config.parse_command_line(argc, argv);
+    config.add_observer("providers.*", [](const auto &cfg) {
+        std::cout << "Provider configuration changed!\n";
+        std::cout << cfg.dump(4) << "\n";
+    });
+    config.bulk_set({ { "providers.openai.config_overrides.temperature", 0.7 },
+        { "providers.groq.enabled", true } });
+    {
+        core::Configuration::Transaction txn(config);
+        txn.data()["version"] = 2;
+        txn.data()["providers"]["openai"]["enabled"] = false;
+        txn.commit();
+    }
+    LOG_CRITICAL << "Configuration: " << config.get_json().dump(4);
+    //config.atomic_save();
     // Create AgentManager
     AgentManager agentManager;
-   
-    // Initialize Lua provider system
-    Configuration config("lua/config.lua");
+
+    // Initialize provider system with JSON configuration
     ProviderManager::getInstance()->initialize(config);
 
     // Create agents using Lua providers
@@ -56,7 +87,7 @@ int main()
     std::string command;
     std::cout << "Enter a command (or 'exit'): ";
 
-    std::cout << "Default provider: " << config.default_provider() << "\n";
+    std::cout << "Default provider: " << config.get<std::string>("default_provider") << "\n";
 
     while (std::getline(std::cin, command) && command != "exit") {
         if (command == "help") {
