@@ -280,8 +280,8 @@ private:
                 sol::table provider_config = lua_.create_table();
                 
                 // Load provider's config overrides
-                if (provider.contains("config_overrides")) {
-                    const auto& overrides = provider["config_overrides"];
+                if (provider.contains("config")) {
+                    const auto& overrides = provider["config"];
                     for (const auto& [key, value] : overrides.items()) {
                         if (value.is_string()) {
                             provider_config[key] = value.get<std::string>();
