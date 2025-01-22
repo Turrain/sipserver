@@ -55,6 +55,8 @@ int main(int argc, char *argv[])
         std::cout << "Provider configuration changed!\n";
         std::cout << cfg.dump(4) << "\n";
     });
+   // config.set("providers.groq.enabled", true);
+
     config.bulk_set({ { "providers.openai.config_overrides.temperature", 0.7 },
         { "providers.groq.enabled", true } });
     {
@@ -83,7 +85,7 @@ int main(int argc, char *argv[])
     agent2Config["model"] = "mixtral-8x7b-32768";
     agent2Config["temperature"] = 0.8;
     auto agent2 = agentManager.createAgent("agent2", "BaseAgent", agent2Config);
-
+    agent2->think("Hello, world!");
     std::string command;
     std::cout << "Enter a command (or 'exit'): ";
 

@@ -1,15 +1,12 @@
 -- groq.lua
 local groq = {}
-local json = require("dkjson")  -- Ensure dkjson.lua is in the Lua path
+local json = require("dkjson")
 
-groq.config = {
-    api_key = "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",  -- Replace with your Groq API key
-    api_url = "https://api.groq.com",  -- Groq API endpoint
-    api_path = "/openai/v1/chat/completions",
-    model = "mixtral-8x7b-32768"  -- Default model (can be overridden in config.lua)
-}
+-- Get config from C++
+groq.config = get_provider_config()
 
 function groq.request_handler(config, input, options)
+    log_debug("Config: " .. (config.model))
     local headers = {
         ["Authorization"] = "Bearer " .. config.api_key,
         ["Content-Type"] = "application/json"

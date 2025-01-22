@@ -100,7 +100,7 @@ public:
         auto response = ProviderManager::getInstance()->processRequest(providerName, conversation);
         
         if (!response.content.empty()) {
-            LOG_INFO << "Agent " << id << " received response: " << response.content;
+            LOG_INFO << "Agent " << providerName << id << " received response: " << response.content;
 
             history.push_back({"assistant", response.content});
             this->speak(response.content);

@@ -4,16 +4,16 @@
         "openai": {
             "enabled": true,
             "script_path": "lua/openai.lua",
-            "config_overrides": {
+            "config": {
                 "api_key": "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",
-                "api_url": "api.openai.com",
+                "api_url": "https://api.openai.com",
                 "model": "gpt-4o"
             }
         },
         "groq": {
             "enabled": true,
             "script_path": "lua/groq.lua",
-            "config_overrides": {
+            "config": {
                 "api_key": "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",
                 "api_url": "https://api.groq.com",
                 "api_path": "/openai/v1/chat/completions",
@@ -23,7 +23,9 @@
         "ollama": {
             "enabled": true,
             "script_path": "lua/ollama.lua",
-            "config_overrides": {
+            "config": {
+                "api_url": "http://localhost:11434",
+                "api_path": "/api/chat",
                 "model": "llama3.2:1b"
             }
         }

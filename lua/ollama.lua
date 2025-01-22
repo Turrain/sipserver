@@ -2,11 +2,8 @@
 local ollama = {}
 local json = require("dkjson")
 
-ollama.config = {
-    api_url = "http://localhost:11434",  -- Ollama API endpoint
-    api_path = "/api/chat",
-    model = "llama3.2:1b"  -- Default model (can be overridden in config.lua)
-}
+-- Get config from C++
+ollama.config = get_provider_config()
 
 function ollama.request_handler(config, input, options)
     local headers = {

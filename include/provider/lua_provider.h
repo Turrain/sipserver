@@ -59,12 +59,16 @@ public:
         lua.open_libraries(sol::lib::base, sol::lib::package,
             sol::lib::table, sol::lib::string);
 
+        // Override default print with logger
+      
+             LOG_DEBUG << "Lua function called";
+
         sol::table lua_options = create_lua_table(lua, options);
 
         try {
             // Call the Lua function
             sol::protected_function_result result = request_fn_(config_, input, lua_options);
-
+       
             // Check if the result is valid
             if (!result.valid()) {
                 sol::error err = result;
@@ -180,6 +184,7 @@ public:
         const std::string &input,
         const std::unordered_map<std::string, std::any> &options = {})
     {
+        std::cout << "Calling provider: " << name;
         auto it = providers_.find(name);
         return it != providers_.end() ? it->second->send_request(input, options) : ProviderResponse { "Provider not found", {} };
     }
@@ -205,6 +210,10 @@ private:
     void initialize_lua_bindings()
     {
         lua_.open_libraries(sol::lib::base, sol::lib::package, sol::lib::table, sol::lib::string, sol::lib::math);
+        
+        // Override default print with logger
+       
+        
         sol::table package = lua_["package"];
         std::string current_path = package["path"];
         package["path"] = current_path + ";./lua/?.lua";
@@ -267,8 +276,32 @@ private:
                 continue;
 
             try {
+                // Create provider config table in the global Lua state
+                sol::table provider_config = lua_.create_table();
+                
+                // Load provider's config overrides
+                if (provider.contains("config_overrides")) {
+                    const auto& overrides = provider["config_overrides"];
+                    for (const auto& [key, value] : overrides.items()) {
+                        if (value.is_string()) {
+                            provider_config[key] = value.get<std::string>();
+                        } else if (value.is_number()) {
+                            provider_config[key] = value.get<double>();
+                        } else if (value.is_boolean()) {
+                            provider_config[key] = value.get<bool>();
+                        }
+                    }
+                }
+
+                // Create a function to get the config
+                lua_["get_provider_config"] = [provider_config]() { return provider_config; };
+
+                // Load and execute the provider script
                 lua_.script_file(provider["script_path"].get<std::string>());
                 LOG_DEBUG << "Loaded provider: " << name;
+
+                // Clean up temporary config
+                lua_["temp_config"] = sol::nil;
             } catch (const sol::error &e) {
                 LOG_ERROR << "Error loading provider " << name << ": " << e.what();
             }
