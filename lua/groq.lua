@@ -6,7 +6,7 @@ local json = require("dkjson")
 groq.config = get_provider_config()
 
 function groq.request_handler(config, input, options)
-    log_debug("Config: " .. (config.model))
+    print("Config: " .. (config.model))
     local headers = {
         ["Authorization"] = "Bearer " .. config.api_key,
         ["Content-Type"] = "application/json"

@@ -48,7 +48,7 @@ public:
 
     // Core access methods
     template<typename T>
-    T get(const std::string &key, bool check_env = true) const
+    T get(const std::string &key, bool check_env = false, bool check_cli = false) const
     {
         std::lock_guard lock(m_mutex);
 
@@ -60,25 +60,32 @@ public:
         }
 
         // Command-line arguments
-        if (auto cli_val = get_cli_value(key); !cli_val.empty()) {
-            return convert_value<T>(cli_val);
+        if (check_cli) {
+            if (auto cli_val = get_cli_value(key); !cli_val.empty()) {
+                return convert_value<T>(cli_val);
+            }
         }
 
         // Configuration file or defaults
         try {
             return get_value<T>(key);
         } catch (const std::exception &) {
-            return m_default_config.value<T>(key, T {});
+            try {
+                json::json_pointer ptr(convert_key(key));
+                return m_default_config.at(ptr).get<T>();
+            } catch (const std::exception &) {
+                return T {}; // Fallback to default-constructed value
+            }
         }
     }
-
-  template<typename T>
-    void set(const std::string& key, const T& value, bool trigger_observers = true) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        json* current = &m_config;
+    template<typename T>
+    void set(const std::string &key, const T &value, bool trigger_observers = true)
+    {
+        std::unique_lock lock(m_mutex);
+        json *current = &m_config;
         std::vector<std::string> tokens;
         std::string token;
-        
+
         // Split key by dots
         std::istringstream iss(key);
         while (std::getline(iss, token, '.')) {
@@ -107,17 +114,18 @@ public:
         notify_observers("*");
     }
 
-   void bulk_set(const std::vector<std::pair<std::string, json>>& updates) {
-        std::unique_lock<std::mutex> lock(m_mutex);
+    void bulk_set(const std::vector<std::pair<std::string, json>> &updates)
+    {
+        std::unique_lock lock(m_mutex);
         std::vector<std::string> changed_keys;
-        
-        for (const auto& [key_path, value] : updates) {
+
+        for (const auto &[key_path, value]: updates) {
             try {
                 // Use internal set without observers
-                json* current = &m_config;
+                json *current = &m_config;
                 std::vector<std::string> tokens;
                 std::string token;
-                
+
                 std::istringstream iss(key_path);
                 while (std::getline(iss, token, '.')) {
                     tokens.push_back(token);
@@ -130,16 +138,16 @@ public:
                         current = &(*current)[tokens[i]];
                     }
                 }
-                
+
                 changed_keys.push_back(key_path);
-            } catch (const std::exception& e) {
-                std::cerr << "Bulk set failed for " << key_path 
-                        << ": " << e.what() << "\n";
+            } catch (const std::exception &e) {
+                std::cerr << "Bulk set failed for " << key_path
+                          << ": " << e.what() << "\n";
             }
         }
-        
+
         lock.unlock();
-        for (const auto& key : changed_keys) {
+        for (const auto &key: changed_keys) {
             notify_observers(key);
         }
     }
@@ -229,7 +237,7 @@ public:
         std::lock_guard lock(m_mutex);
         try {
             fs::path temp_path = m_filename + ".tmp";
-            
+
             // Write to temp file
             {
                 std::ofstream file(temp_path);
@@ -244,15 +252,15 @@ public:
 
             // Atomic replace
             fs::rename(temp_path, m_filename);
-            
+
             // Verify write succeeded
             if (!fs::exists(m_filename) || fs::file_size(m_filename) == 0) {
                 throw std::runtime_error("Atomic save verification failed for " + m_filename);
             }
-        } catch (const fs::filesystem_error& e) {
+        } catch (const fs::filesystem_error &e) {
             std::cerr << "Config save filesystem error: " << e.what() << "\n";
             throw;
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cerr << "Config save error: " << e.what() << "\n";
             throw;
         }
@@ -267,17 +275,89 @@ public:
     // Utility methods
     void parse_command_line(int argc, char *argv[])
     {
-        std::lock_guard lock(m_mutex);
+        std::vector<std::pair<std::string, json>> cli_updates;
+        std::string current_key;
+
+        // Helper function to process collected key-value pairs
+        auto process_pair = [&](const std::string &key, const std::string &raw_value) {
+            try {
+                // Convert CLI key to JSON pointer format
+                std::string json_key = std::regex_replace(key, std::regex { "\\[([0-9]+)\\]" }, ".$1");
+                json_key = std::regex_replace(json_key, std::regex { "\\.\\.+" }, ".");
+
+                // Handle boolean flags
+                if (raw_value.empty()) {
+                    if (key.find("no-") == 0) {
+                        cli_updates.emplace_back(key.substr(3), false);
+                    } else {
+                        cli_updates.emplace_back(key, true);
+                    }
+                    return;
+                }
+
+                // Parse value with type detection
+                json value;
+                if (raw_value == "true")
+                    value = true;
+                else if (raw_value == "false")
+                    value = false;
+                else if (raw_value == "null")
+                    value = nullptr;
+                else if (std::regex_match(raw_value, std::regex { "^-?\\d+$" }))
+                    value = std::stoi(raw_value);
+                else if (std::regex_match(raw_value, std::regex { "^-?\\d+\\.\\d+$" }))
+                    value = std::stod(raw_value);
+                else if (raw_value.front() == '[' && raw_value.back() == ']') {
+                    value = json::parse(raw_value);
+                } else if (raw_value.front() == '{' && raw_value.back() == '}') {
+                    value = json::parse(raw_value);
+                } else {
+                    value = raw_value;
+                }
+
+                cli_updates.emplace_back(json_key, value);
+            } catch (const std::exception &e) {
+                std::cerr << "Error parsing CLI argument " << key
+                          << "=" << raw_value << ": " << e.what() << "\n";
+            }
+        };
+
+        // Main parsing loop
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
+
             if (arg.substr(0, 2) == "--") {
-                size_t pos = arg.find('=');
-                if (pos != std::string::npos) {
-                    std::string key = arg.substr(2, pos - 2);
-                    std::string value = arg.substr(pos + 1);
-                    set(key, value, false);
+                // Finish previous key if needed
+                if (!current_key.empty()) {
+                    process_pair(current_key.substr(2), "");
+                    current_key.clear();
                 }
+
+                size_t eq_pos = arg.find('=');
+                if (eq_pos != std::string::npos) {
+                    // Key-value pair with =
+                    std::string key = arg.substr(2, eq_pos - 2);
+                    std::string value = arg.substr(eq_pos + 1);
+                    process_pair(key, value);
+                } else {
+                    // Potential boolean flag or separated value
+                    current_key = arg;
+                }
+            } else if (!current_key.empty()) {
+                // Value for previous key
+                process_pair(current_key.substr(2), arg);
+                current_key.clear();
             }
+        }
+
+        // Process remaining key without value
+        if (!current_key.empty()) {
+            process_pair(current_key.substr(2), "");
+        }
+
+        // Apply all updates in one atomic operation
+        if (!cli_updates.empty()) {
+            bulk_set(cli_updates);
         }
     }
 
@@ -303,7 +383,7 @@ private:
     void initialize()
     {
         load_config();
-       
+
         m_config.merge_patch(m_default_config);
         if (m_watch) {
             start_file_watcher();
@@ -316,7 +396,7 @@ private:
             if (!fs::exists(m_filename)) {
                 // Create parent directories if needed
                 fs::create_directories(fs::path(m_filename).parent_path());
-                
+
                 // Write default config if file doesn't exist
                 std::ofstream outfile(m_filename);
                 if (outfile) {
@@ -332,23 +412,23 @@ private:
                     if (!new_config.is_object()) {
                         throw std::runtime_error("Root config must be a JSON object");
                     }
-                    m_config = m_default_config;  // Reset to defaults
+                    m_config = m_default_config; // Reset to defaults
                     m_config.merge_patch(new_config);
                     return true;
                 } catch (const json::parse_error &e) {
-                    std::cerr << "Config parse error [" << m_filename << "]: " 
+                    std::cerr << "Config parse error [" << m_filename << "]: "
                               << e.what() << "\n";
                     std::cerr << "Falling back to default configuration\n";
                     m_config = m_default_config;
                     return false;
                 }
             }
-        } catch (const fs::filesystem_error& e) {
+        } catch (const fs::filesystem_error &e) {
             std::cerr << "Filesystem error: " << e.what() << "\n";
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cerr << "Config load error: " << e.what() << "\n";
         }
-        
+
         return false;
     }
 
@@ -371,25 +451,23 @@ private:
         });
     }
 
-    void notify_observers(const std::string& changed_key) {
+    void notify_observers(const std::string &changed_key)
+    {
         std::vector<ObserverCallback> callbacks;
         json config_copy;
-        
+
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::unique_lock lock(m_mutex);
             config_copy = m_config;
-            
-            for (const auto& [key, cb_list] : m_observers) {
-                if (key == changed_key || 
-                   (key.size() > 1 && key.back() == '*' && 
-                    changed_key.compare(0, key.size()-1, key, 0, key.size()-1) == 0) ||
-                    key == "*") {
+
+            for (const auto &[key, cb_list]: m_observers) {
+                if (key == changed_key || (key.size() > 1 && key.back() == '*' && changed_key.compare(0, key.size() - 1, key, 0, key.size() - 1) == 0) || key == "*") {
                     callbacks.insert(callbacks.end(), cb_list.begin(), cb_list.end());
                 }
             }
         }
-        
-        for (const auto& callback : callbacks) {
+
+        for (const auto &callback: callbacks) {
             callback(config_copy);
         }
     }
@@ -441,7 +519,7 @@ private:
     }
 
     // Member variables
-    mutable std::mutex m_mutex;
+    mutable std::recursive_mutex m_mutex;
     json m_config;
     json m_default_config;
     std::string m_filename;

@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/server",
-            "args": [],
+            "args": ["--test"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
