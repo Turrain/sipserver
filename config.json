@@ -1,5 +1,17 @@
 {
     "default_provider": "openai",
+    "server": {
+        "host": "localhost",
+        "port": 18080
+    },
+    "services": {
+        "whisper": {
+            "url": "ws://localhost:9090"
+        },
+        "auralis": {
+            "url": "ws://localhost:9091"
+        }
+    },
     "providers": {
         "openai": {
             "enabled": true,

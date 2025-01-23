@@ -1,6 +1,7 @@
 #pragma once
 #include "core/configuration.h"
 #include "utils/logger.h"
+#include "common/message.h"
 #include <sol/sol.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <any>
@@ -8,28 +9,6 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
-#include "deps/json.hpp"
-
-using json = nlohmann::json;
-
-class Message {
-public:
-    std::string role;
-    std::string content;
-
-    Message() = default;
-    Message(const std::string &role, const std::string &content) :
-        role(role), content(content) { }
-};
-
-inline void to_json(json &j, const Message &m) {
-    j = json { { "role", m.role }, { "content", m.content } };
-}
-
-inline void from_json(const json &j, Message &m) {
-    j.at("role").get_to(m.role);
-    j.at("content").get_to(m.content);
-}
 
 using Messages = std::vector<Message>;
 
@@ -61,7 +40,7 @@ public:
 
         // Override default print with logger
       
-             LOG_DEBUG << "Lua function called";
+        LOG_DEBUG << "Lua function called";
 
         sol::table lua_options = create_lua_table(lua, options);
 
@@ -213,7 +192,6 @@ private:
         
         // Override default print with logger
        
-        
         sol::table package = lua_["package"];
         std::string current_path = package["path"];
         package["path"] = current_path + ";./lua/?.lua";
@@ -240,12 +218,14 @@ private:
             headers.for_each([&hdrs](sol::object key, sol::object value) {
                 hdrs.emplace(key.as<std::string>(), value.as<std::string>());
             });
-
+            LOG_DEBUG << "Headers: " << hdrs.size();
+            LOG_DEBUG << "Body: " << body;
             if (is_https(url)) {
                 httplib::SSLClient cli(hostname, 443);
                 cli.enable_server_certificate_verification(true);
                 auto res = cli.Post(path, hdrs, body, "application/json");
                 if (res) {
+                    LOG_DEBUG << "HTTP Request Successful: " << res->body;
                     return res->body;
                 } else {
                     LOG_ERROR << "HTTP Request Failed: " << res.error();
@@ -256,6 +236,7 @@ private:
                 httplib::Client cli(hostname);
                 auto res = cli.Post(path, hdrs, body, "application/json");
                 if (res) {
+                    LOG_DEBUG << "HTTP Request Successful: " << res->body;
                     return res->body;
                 } else {
                     LOG_ERROR << "HTTP Request Failed: " << res.error();

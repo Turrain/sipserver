@@ -24,6 +24,7 @@ function groq.request_handler(config, input, options)
 
     -- Send the HTTP POST request
     local response = http_post(config.api_url, config.api_path, headers, body_str)
+    print("Raw response from Groq API:", response)
 
     -- Check if the HTTP request failed
     if response == "HTTP request failed" then
@@ -33,11 +34,14 @@ function groq.request_handler(config, input, options)
     -- Parse the JSON response
     local success, res = pcall(json.decode, response)
     if not success then
+        print("JSON parse error:", res)
         return {content = "Error parsing response", metadata = {}}
     end
+    print("Parsed JSON response:", json.encode(res))
 
     -- Validate the response structure
     if not res or not res.choices or not res.choices[1] or not res.choices[1].message then
+        print("Invalid response structure:", json.encode(res))
         return {content = "Invalid response format", metadata = {}}
     end
 

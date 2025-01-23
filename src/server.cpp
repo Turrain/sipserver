@@ -1,20 +1,44 @@
 #include "server/server.h"
 #include <memory>
+#include <deps/json.hpp>
+#include <httplib.h>
+#include "agent/agent.h"
+#include "sip/manager.h"
 
-Server::Server()
+using json = nlohmann::json;
+
+Server::Server(std::shared_ptr<core::Configuration> config)
+    : m_config(config)
 {
-    m_agentManager = std::make_shared<AgentManager>();
+    // Create scoped configurations for different components
+    auto agentConfig = m_config->create_scoped_config("agents");
+    auto serverConfig = m_config->create_scoped_config("server");
+    auto providerManager = ProviderManager::getInstance();
+    providerManager->initialize(*config);
+    // Initialize managers with scoped configurations
+    m_agentManager = std::make_shared<AgentManager>(agentConfig);
     m_manager = std::make_shared<Manager>(m_agentManager);
+
     setupRoutes();
 }
 
-Server::~Server() { }
+Server::~Server() {
+    m_server.stop();
+}
 
 void Server::run()
 {
-    m_server.listen("localhost", 18080);
+    const auto host = m_config->get<std::string>("server.host", true, true);
+    const auto port = m_config->get<int>("server.port", true, true);
+    
+    LOG_INFO << "Starting server on " << host << ":" << port;
+    
+    if (!m_server.listen(host, port)) {
+        LOG_ERROR << "Server failed to start on " << host << ":" << port;
+    }
 }
-uint64_t event_id;
+
+static uint64_t event_id = 0;
 void Server::setupRoutes()
 {
     //-----------------------------------------------
@@ -104,6 +128,7 @@ void Server::setupRoutes()
     });
 
 #pragma endregion
+
 //-----------------------------------------------
 // CALL
 //-----------------------------------------------
@@ -173,121 +198,178 @@ void Server::setupRoutes()
     });
 
 #pragma endregion
+
     //-----------------------------------------------
     // AGENT
     //-----------------------------------------------
 #pragma region Agent
 
-    // GET /agents - List all agents
-    m_server.Get("/agents", [this](const httplib::Request &req, httplib::Response &res) {
-        json response = json::array();
-        auto agents = m_agentManager->getAgents();
+// GET /agents - List all agents
+m_server.Get("/agents", [this](const httplib::Request& req, httplib::Response& res) {
+    auto agents = m_agentManager->getAgents();
+    json response = json::array();
 
-        for (const auto &agent: agents) {
-            response.push_back({ { "id", agent->id },
-                { "config", agent->config } });
+    {
+        core::Configuration::Transaction tx(*m_agentManager->getConfig());
+        for (const auto& agent : agents) {
+            response.push_back({
+                {"id", agent->id()},
+                {"config", tx.data()} // Thread-safe snapshot
+            });
         }
+    }
 
-        res.set_content(response.dump(), "application/json");
-    });
+    res.set_content(response.dump(), "application/json");
+});
 
-    // POST /agents - Create new agent
-    m_server.Post("/agents", [this](const httplib::Request &req, httplib::Response &res) {
-        try {
-            auto body = json::parse(req.body);
+// POST /agents - Create new agent with initial config
+m_server.Post("/agents", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+        auto body = json::parse(req.body);
 
-            if (!body.contains("id") || !body.contains("type") || !body.contains("config")) {
-                res.status = 400;
-                res.set_content("{\"error\":\"Missing required fields: id, type, config\"}", "application/json");
-                return;
-            }
-
-            auto agent = m_agentManager->createAgent(
-                body["id"].get<std::string>(),
-                body["type"].get<std::string>(),
-                body["config"]);
-
-            if (!agent) {
-                res.status = 409;
-                res.set_content("{\"error\":\"Agent already exists\"}", "application/json");
-                return;
-            }
-
-            json response = {
-                { "id", agent->id },
-                { "config", agent->config }
-            };
-
-            res.status = 201;
-            res.set_content(response.dump(), "application/json");
-        } catch (const json::exception &e) {
+        if (!body.contains("id") || !body["id"].is_string()) {
             res.status = 400;
-            res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
+            res.set_content(json{{"error", "Missing/invalid 'id' field"}}.dump(), 
+                          "application/json");
+            return;
         }
-    });
 
-    // GET /agents/:id - Get specific agent
-    m_server.Get("/agents/:id", [this](const httplib::Request &req, httplib::Response &res) {
-        auto id = req.path_params.at("id");
+        const auto& id = body["id"].get<std::string>();
+        const auto type = body.value("type", "BaseAgent");
+        const auto& config_patch = body.value("config", json::object());
+
+        // Check if agent already exists
+        if (m_agentManager->getAgent(id)) {
+            res.status = 409;
+            res.set_content(json{{"error", "Agent already exists"}}.dump(),
+                          "application/json");
+            return;
+        }
+        
+        auto agent = m_agentManager->create_agent(id);
+        if (agent) {
+            res.status = 201;
+            res.set_content(json{
+                {"id", id},
+                {"config", agent->config()->get_json()}
+            }.dump(), "application/json");
+        } else {
+            res.status = 500;
+            res.set_content(json{{"error", "Agent creation failed"}}.dump(), 
+                          "application/json");
+        }
+    } catch (const json::exception& e) {
+        res.status = 400;
+        res.set_content(json{{"error", "Invalid JSON"}}.dump(), 
+                      "application/json");
+    }
+});
+
+// POST /agents/:id/think - Make agent think
+m_server.Post(R"(/agents/([^/]+)/think)", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+        std::string id = req.matches[1];
+        auto body = json::parse(req.body);
+
+        if (!body.contains("input")) {
+            res.status = 400;
+            res.set_content(json{{"error", "Missing 'input' field"}}.dump(),
+                          "application/json");
+            return;
+        }
+
         auto agent = m_agentManager->getAgent(id);
-
         if (!agent) {
             res.status = 404;
-            res.set_content("{\"error\":\"Agent not found\"}", "application/json");
+            res.set_content(json{{"error", "Agent not found"}}.dump(),
+                          "application/json");
             return;
         }
 
-        json response = {
-            { "id", agent->id },
-            { "config", agent->config }
-        };
+        agent->think(body["input"].get<std::string>());
+        res.status = 200;
+        res.set_content(json{{"response", "Processed successfully"}}.dump(),
+                      "application/json");
+    } catch (const json::exception& e) {
+        res.status = 400;
+        res.set_content(json{{"error", "Invalid JSON"}}.dump(),
+                      "application/json");
+    }
+});
 
-        res.set_content(response.dump(), "application/json");
-    });
+// PATCH /agents/:id - Update agent configuration
+m_server.Patch(R"(/agents/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+        std::string id = req.matches[1];
+        auto patch = json::parse(req.body);
 
-    // PUT /agents/:id - Update agent configuration
-    m_server.Put("/agents/:id", [this](const httplib::Request &req, httplib::Response &res) {
-        try {
-            auto id = req.path_params.at("id");
-            auto body = json::parse(req.body);
-
-            if (!body.contains("config")) {
-                res.status = 400;
-                res.set_content("{\"error\":\"Missing config field\"}", "application/json");
-                return;
-            }
-
-            if (!m_agentManager->updateAgentConfig(id, body["config"])) {
-                res.status = 404;
-                res.set_content("{\"error\":\"Agent not found\"}", "application/json");
-                return;
-            }
-
-            auto agent = m_agentManager->getAgent(id);
-            json response = {
-                { "id", agent->id },
-                { "config", agent->config }
-            };
-
-            res.set_content(response.dump(), "application/json");
-        } catch (const json::exception &e) {
+        // Validate JSON structure
+        if (!patch.is_object()) {
             res.status = 400;
-            res.set_content("{\"error\":\"Invalid JSON\"}", "application/json");
-        }
-    });
-
-    // DELETE /agents/:id - Remove an agent
-    m_server.Delete("/agents/:id", [this](const httplib::Request &req, httplib::Response &res) {
-        auto id = req.path_params.at("id");
-
-        if (!m_agentManager->removeAgent(id)) {
-            res.status = 404;
-            res.set_content("{\"error\":\"Agent not found\"}", "application/json");
+            res.set_content(json{{"error", "Invalid JSON format"}}.dump(), 
+                          "application/json");
             return;
         }
 
-        res.status = 204;
-    });
+        // Check if agent exists
+        auto agent = m_agentManager->getAgent(id);
+        if (!agent) {
+            res.status = 404;
+            res.set_content(json{{"error", "Agent not found"}}.dump(), 
+                          "application/json");
+            return;
+        }
+
+        // Validate configuration values
+        if (patch.contains("stm_capacity") && patch["stm_capacity"].get<int>() < 0) {
+            res.status = 422;
+            res.set_content(json{{"error", "Invalid stm_capacity value"}}.dump(),
+                          "application/json");
+            return;
+        }
+        agent->configure(patch);
+
+
+        res.status = 200;
+        res.set_content(json{
+            {"id", id},
+            {"config", agent->config()->get_json()}
+        }.dump(), "application/json");
+
+    } catch (const json::exception& e) {
+        res.status = 400;
+        res.set_content(json{{"error", "Invalid JSON"}}.dump(), 
+                      "application/json");
+    }
+});
+
+// GET /agents/:id - Get agent config state
+m_server.Get("/agents/:id", [this](const httplib::Request& req, httplib::Response& res) {
+    auto id = req.path_params.at("id");
+    
+    if (auto agent = m_agentManager->getAgent(id)) {
+        core::Configuration::Transaction tx(*agent->config());
+            res.set_content(json{
+                {"id", id},
+                {"config", tx.data()}
+            }.dump(), "application/json");
+    } else {
+        res.status = 404;
+        res.set_content(json{{"error", "Agent not found"}}.dump(), 
+                      "application/json");
+    }
+});
+
+// DELETE /agents/:id - Remove agent
+m_server.Delete(R"(/agents/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string id = req.matches[1];
+    
+    // Remove agent
+    m_agentManager->remove_agent(id);
+    
+    // Always return 204 as per REST convention
+    res.status = 204;
+});
 
 #pragma endregion
 
@@ -300,17 +382,15 @@ void Server::setupRoutes()
 
         res.set_content(response.dump(), "application/json");
     });
-    // TODO: Implemtent /events route
+
     m_server.Get("/events", [this](const httplib::Request &req, httplib::Response &res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         res.set_chunked_content_provider("text/event-stream", [this](size_t offset, httplib::DataSink &sink) {
             std::this_thread::sleep_for(std::chrono::seconds(5));
             auto text = "data: {\"id\": " + std::to_string(event_id++) + "}\n\n";
             sink.write(text.c_str(), text.size());
-
             return true;
         });
-        res.set_header("Content-Type", "text/event-stream");
     });
 
 #pragma endregion

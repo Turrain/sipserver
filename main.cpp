@@ -13,14 +13,13 @@ void runTestMode(core::Configuration &config)
     // Initialize components
     auto providerManager = ProviderManager::getInstance();
     providerManager->initialize(config);
-    auto agentManager = std::make_shared<AgentManager>();
+
+    // Create agent manager with scoped configuration
+    auto agentConfig = config.create_scoped_config("agents");
+    auto agentManager = std::make_shared<AgentManager>(agentConfig);
 
     // Create test agent
-    json agentConfig;
-    agentConfig["provider"] = "groq"; // or "groq" or "ollama"
-    agentConfig["model"] = "gpt-4";
-    agentConfig["temperature"] = 0.7;
-    auto agent = agentManager->createAgent("test-agent", "BaseAgent", agentConfig);
+    auto agent = agentManager->create_agent("test-agent");
 
     if (!agent) {
         LOG_ERROR << "Failed to create test agent";
@@ -40,7 +39,8 @@ void runTestMode(core::Configuration &config)
 
         try {
             auto start = std::chrono::high_resolution_clock::now();
-            agent->think(input);
+            std::string a =  agent->process_message(input);
+            LOG_DEBUG << a;
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
             std::cout << "Response time: " << duration.count() << "ms\n";
@@ -56,46 +56,49 @@ int main(int argc, char *argv[])
     json defaults = R"({
         "version": 1,
         "default_provider": "openai",
+        "server": {
+            "host": "localhost",
+            "port": 18080
+        },
+        "services": {
+            "whisper": {
+                "url": "ws://localhost:9090"
+            },
+            "auralis": {
+                "url": "ws://localhost:9091"
+            }
+        },
         "providers": {
             "openai": {
                 "enabled": true,
                 "script_path": "lua/openai.lua",
-                "config_overrides": {
+                "config": {
                     "model": "gpt-4"
                 }
             }
         }
     })"_json;
 
-    core::Configuration config("config.json", defaults, false);
-    config.parse_command_line(argc, argv);
+    auto config = std::make_shared<core::Configuration>("config.json", defaults, false);
+    config->parse_command_line(argc, argv);
 
-    config.add_observer("providers.*", [](const auto &cfg) {
+    config->add_observer("providers.*", [](const auto &cfg) {
         std::cout << "Provider configuration changed!\n";
         std::cout << cfg.dump(4) << "\n";
     });
-    LOG_INFO << config.get_json().dump(4);
     // config.set("providers.groq.enabled", true);
-    auto test = config.get<int>("test");
+    auto test = config->get<int>("test");
     LOG_CRITICAL << "Test mode: " << test;
 
-    config.bulk_set({ { "providers.openai.config_overrides.temperature", 0.7 },
-        { "providers.groq.enabled", true } });
-    {
-        core::Configuration::Transaction txn(config);
-        txn.data()["version"] = 2;
-        txn.data()["providers"]["openai"]["enabled"] = false;
-        txn.commit();
-    }
-    LOG_CRITICAL << "Configuration: " << config.get_json().dump(4);
+
     // config.atomic_save();
     //  Create AgentManager
 
     try {
         if (test) {
-            runTestMode(config);
+             runTestMode(*config);
         } else {
-            Server server;
+            Server server(config);
             server.run();
         }
 

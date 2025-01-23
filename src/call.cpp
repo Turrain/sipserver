@@ -26,7 +26,7 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
             auto format = portInfo.format;
             if (direction == Call::INCOMING) {
                 LOG_DEBUG << "Incoming call from " << ci.remoteUri;
-                agent->speak("Привет, я твой ассистент.");
+                agent->process_message("Привет, я твой ассистент.");
 
                 //   agent->sendText("Привет, я твой ассистент.");
             }
@@ -47,7 +47,7 @@ Call::Call(Account &acc, int call_id) :
 {
     direction = OUTGOING;
 
-    this->getAgent()->setSpeechCallback(
+    this->getAgent()->set_speech_callback(
         [this](const std::vector<int16_t> &audio_data) {
             mediaPort.addToQueue(audio_data);
         });
@@ -55,7 +55,7 @@ Call::Call(Account &acc, int call_id) :
     mediaPort.vad.setVoiceSegmentCallback(
         [this](const std::vector<pj::MediaFrame> &frames) {
             LOG_DEBUG << "Voice segment detected";
-            this->getAgent()->listen(VAD::mergeFrames(frames));
+            this->getAgent()->process_audio(VAD::mergeFrames(frames));
         });
 
     mediaPort.vad.setSpeechStartedCallback(

@@ -27,10 +27,12 @@ public:
     // Constructor
     Configuration(const std::string &filename,
         const json &default_config = {},
-        bool watch_for_changes = false) :
+        bool watch_for_changes = false,
+        bool enable_file_ops = true) :
         m_filename(filename),
         m_default_config(default_config),
-        m_watch(watch_for_changes)
+        m_watch(watch_for_changes),
+        m_enable_file_ops(enable_file_ops)
     {
         initialize();
     }
@@ -106,14 +108,6 @@ public:
         }
     }
 
-    // Batch operations
-    void merge_patch(const json &patch)
-    {
-        std::lock_guard lock(m_mutex);
-        m_config.merge_patch(patch);
-        notify_observers("*");
-    }
-
     void bulk_set(const std::vector<std::pair<std::string, json>> &updates)
     {
         std::unique_lock lock(m_mutex);
@@ -150,6 +144,80 @@ public:
         for (const auto &key: changed_keys) {
             notify_observers(key);
         }
+    }
+
+    class JsonTransaction {
+    public:
+        JsonTransaction(Configuration &config, const json &patch) :
+            m_config(config), m_patch(patch), m_active(true)
+        {
+            m_config.m_mutex.lock();
+            m_original = m_config.m_config;
+        }
+
+        void commit()
+        {
+            if (m_active) {
+                // Apply patch to original state
+                json patched = m_original;
+                patched.merge_patch(m_patch);
+
+                // Validate before applying
+                if (validate(patched)) {
+                    m_config.m_config = patched;
+                    m_config.notify_observers("*");
+                }
+                release();
+            }
+        }
+
+        void rollback()
+        {
+            if (m_active) {
+                release();
+            }
+        }
+
+        ~JsonTransaction()
+        {
+            if (m_active)
+                rollback();
+        }
+
+    private:
+        Configuration &m_config;
+        json m_patch;
+        json m_original;
+        bool m_active;
+
+        bool validate(const json &proposed)
+        {
+            // Add custom validation logic here
+            return true;
+        }
+
+        void release()
+        {
+            m_config.m_mutex.unlock();
+            m_active = false;
+        }
+    };
+    // New transaction methods
+    JsonTransaction json_transaction(const json &patch)
+    {
+        return JsonTransaction(*this, patch);
+    }
+
+    void atomic_patch(const json &patch)
+    {
+        JsonTransaction txn(*this, patch);
+        txn.commit();
+    }
+
+    // Modified merge_patch using transactions
+    void merge_patch(const json &patch)
+    {
+        atomic_patch(patch);
     }
 
     // Transaction support
@@ -234,9 +302,19 @@ public:
     // File operations
     void atomic_save() const
     {
+        if (!m_enable_file_ops) {
+            return; // No-op if file operations are disabled
+        }
+
         std::lock_guard lock(m_mutex);
         try {
-            fs::path temp_path = m_filename + ".tmp";
+            fs::path config_path = fs::path(m_filename);
+            fs::path temp_path = config_path.parent_path() / (config_path.filename().string() + ".tmp");
+
+            // Ensure parent directory exists before any file operations
+            if (!config_path.parent_path().empty()) {
+                fs::create_directories(config_path.parent_path());
+            }
 
             // Write to temp file
             {
@@ -245,17 +323,15 @@ public:
                     throw std::runtime_error("Failed to create temporary config file at " + temp_path.string());
                 }
                 file << m_config.dump(4);
+                file.close(); // Ensure file is properly closed
             }
 
-            // Ensure parent directory exists
-            fs::create_directories(temp_path.parent_path());
-
             // Atomic replace
-            fs::rename(temp_path, m_filename);
+            fs::rename(temp_path, config_path);
 
             // Verify write succeeded
-            if (!fs::exists(m_filename) || fs::file_size(m_filename) == 0) {
-                throw std::runtime_error("Atomic save verification failed for " + m_filename);
+            if (!fs::exists(config_path) || fs::file_size(config_path) == 0) {
+                throw std::runtime_error("Atomic save verification failed for " + config_path.string());
             }
         } catch (const fs::filesystem_error &e) {
             std::cerr << "Config save filesystem error: " << e.what() << "\n";
@@ -268,6 +344,9 @@ public:
 
     bool reload()
     {
+        if (!m_enable_file_ops) {
+            return false;
+        }
         std::lock_guard lock(m_mutex);
         return load_config();
     }
@@ -379,13 +458,45 @@ public:
         return m_config;
     }
 
+    // Create a new Configuration instance with a scoped view of this configuration
+    std::shared_ptr<Configuration> create_scoped_config(const std::string &scope)
+    {
+        std::lock_guard lock(m_mutex);
+        json scoped_defaults;
+        try {
+            json::json_pointer ptr(convert_key(scope));
+            if (m_config.contains(ptr)) {
+                scoped_defaults = m_config[ptr];
+            }
+        } catch (...) {
+            // If path doesn't exist, start with empty defaults
+        }
+
+        auto scoped_config = std::make_shared<Configuration>(
+            m_filename + "." + scope, // Unique filename for the scoped config
+            scoped_defaults,
+            false,
+            false // Don't watch the file since parent handles that
+        );
+
+        // Add observer to parent to update scoped config
+        add_observer(scope, [scoped_config, scope](const json &updated) {
+            if (updated.contains(scope)) {
+                scoped_config->merge_patch(updated[scope]);
+            }
+        });
+
+        return scoped_config;
+    }
+
 private:
     void initialize()
     {
-        load_config();
-
+        if (m_enable_file_ops) {
+            load_config();
+        }
         m_config.merge_patch(m_default_config);
-        if (m_watch) {
+        if (m_watch && m_enable_file_ops) { // Ensure watcher respects the flag
             start_file_watcher();
         }
     }
@@ -393,18 +504,23 @@ private:
     bool load_config()
     {
         try {
-            if (!fs::exists(m_filename)) {
-                // Create parent directories if needed
-                fs::create_directories(fs::path(m_filename).parent_path());
+            fs::path config_path = fs::path(m_filename);
+
+            if (!fs::exists(config_path)) {
+                // Create parent directory if needed and it doesn't exist
+                if (!config_path.parent_path().empty()) {
+                    fs::create_directories(config_path.parent_path());
+                }
 
                 // Write default config if file doesn't exist
-                std::ofstream outfile(m_filename);
+                std::ofstream outfile(config_path);
                 if (outfile) {
                     outfile << m_default_config.dump(4);
+                    outfile.close();
                 }
             }
 
-            std::ifstream file(m_filename);
+            std::ifstream file(config_path);
             if (file) {
                 try {
                     json new_config = json::parse(file);
@@ -435,17 +551,30 @@ private:
     void start_file_watcher()
     {
         m_watcher_thread = std::thread([this]() {
-            auto last_write = fs::last_write_time(m_filename);
+            fs::path config_path = fs::path(m_filename);
+
+            // Initial check for file existence
+            if (!fs::exists(config_path)) {
+                return;
+            }
+
+            auto last_write = fs::last_write_time(config_path);
             while (!m_stop_watch) {
                 std::this_thread::sleep_for(1s);
                 try {
-                    auto current_write = fs::last_write_time(m_filename);
+                    if (!fs::exists(config_path)) {
+                        continue;
+                    }
+                    auto current_write = fs::last_write_time(config_path);
                     if (current_write != last_write) {
                         last_write = current_write;
                         reload();
                         notify_observers("*");
                     }
-                } catch (...) {
+                } catch (const fs::filesystem_error &e) {
+                    std::cerr << "File watcher error: " << e.what() << "\n";
+                } catch (const std::exception &e) {
+                    std::cerr << "Unexpected error in file watcher: " << e.what() << "\n";
                 }
             }
         });
@@ -517,7 +646,7 @@ private:
     {
         return "/" + std::regex_replace(key, std::regex { "\\." }, "/");
     }
-
+    bool m_enable_file_ops;
     // Member variables
     mutable std::recursive_mutex m_mutex;
     json m_config;
@@ -543,6 +672,17 @@ inline bool Configuration::convert_value<bool>(const std::string &str) const
     bool value;
     iss >> std::boolalpha >> value;
     return value;
+}
+
+template<>
+inline std::vector<std::string> Configuration::convert_value<std::vector<std::string>>(const std::string &str) const
+{
+    std::vector<std::string> result;
+    json j = json::parse(str);
+    if (j.is_array()) {
+        return j.get<std::vector<std::string>>();
+    }
+    throw std::runtime_error("Cannot convert to vector<string>");
 }
 
 } // namespace core

@@ -1,205 +1,296 @@
 #pragma once
-#include "deps/json.hpp"
+#include "core/configuration.h"
 #include "provider/provider_manager.h"
+#include "stream/whisper_client.h"
+#include "stream/auralis_client.h"
 #include "utils/logger.h"
-#include <deque>
+#include <deps/json.hpp>
+#include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
-
-#include "stream/auralis_client.h"
-#include "stream/whisper_client.h"
+#include "common/message.h"
 
 using json = nlohmann::json;
 
-
-using Messages = std::vector<Message>;
-
 class Agent {
 public:
-    using SpeechCallbackData = std::function<void(const std::vector<int16_t> &)>;
+    using SpeechCallback = std::function<void(const std::vector<int16_t>&)>;
 
-    std::string id;
-    json config;
-    SpeechCallbackData speechCallback;
-    Messages history;
-    int stmCapacity;
-    Agent(const std::string &agent_id, const json &cfg) :
-        id(agent_id), config(cfg)
+    explicit Agent(std::string id, std::shared_ptr<core::Configuration> config)
+        : id_(std::move(id)), config_(std::move(config)) 
     {
-        stmCapacity = config.value("stm_capacity", 10);
-        history.clear();
-    }
-    virtual void setSpeechCallback(SpeechCallbackData callback)
-    {
-        speechCallback = callback;
+        // Register configuration observers
+        config_->add_observer("stm_capacity", [this](const auto&) {
+            update_stm_capacity();
+        });
+        
+        config_->add_observer("provider", [this](const auto&) {
+            update_provider();
+        });
+
+        // Initial setup
+        update_stm_capacity();
+        update_provider();
     }
 
     virtual ~Agent() = default;
-    virtual void think(const std::string &message) = 0;
-    virtual void listen(const std::vector<int16_t> &audio_data) = 0;
-    virtual void speak(const std::string &text) = 0;
-    virtual void configure(const json &newConfig)
-    {
-        config.merge_patch(newConfig);
-        if (newConfig.contains("stm_capacity")) {
-            stmCapacity = newConfig["stm_capacity"];
+
+    const std::string& id() const { return id_; }
+    std::shared_ptr<core::Configuration> config() const { return config_; }
+
+    void configure(const std::string& key_path, const std::string& value) {
+        this->config_->set(key_path, value);
+    }
+
+    void configure(const json& patch) {
+        this->config_->atomic_patch(patch);
+    };
+
+    template<typename T>
+    T get_config(const std::string& key_path) const {
+        return config_->get<T>(key_path);
+    }
+
+    // Core functionality
+    virtual std::string process_message(const std::string& message) = 0;
+    virtual void process_audio(const std::vector<int16_t>& audio_data) = 0;
+    virtual std::string generate_response(const std::string& text) = 0;
+    virtual void set_speech_callback(SpeechCallback callback) = 0;
+
+    void think(const std::string& input) {
+        process_message(input);
+    }
+
+protected:
+    void maintain_history() {
+        while (history_.size() > stm_capacity_) {
+            history_.erase(history_.begin());
         }
-        LOG_DEBUG << "Agent " << id << " updated config: " << config.dump();
+    }
+
+    std::string id_;
+    std::shared_ptr<core::Configuration> config_;
+    std::vector<Message> history_;
+    size_t stm_capacity_ = 10;
+    std::string current_provider_;
+
+private:
+    void update_stm_capacity() {
+        stm_capacity_ = config_->get<size_t>("stm_capacity");
+    }
+
+    void update_provider() {
+        current_provider_ = config_->get<std::string>("provider");
     }
 };
 
-class BaseAgent: public Agent {
+class BaseAgent : public Agent {
 private:
-    WhisperClient whisper_client;
-    AuralisClient auralis_client;
+    WhisperClient whisper_client_;
+    AuralisClient auralis_client_;
+    std::string whisper_endpoint_;
+    std::string auralis_endpoint_;
+    std::string voice_style_;
+    float voice_temperature_;
+
+    void connect_services() {
+        whisper_client_.connect(whisper_endpoint_);
+        auralis_client_.connect(auralis_endpoint_);
+        
+        whisper_client_.set_transcription_callback([this](const auto& text) {
+            this->process_message(text);
+        });
+    }
+
+    void setup_voice_parameters() {
+        voice_style_ = config_->get<std::string>("voice.style");
+        voice_temperature_ = config_->get<float>("voice.temperature");
+    }
+
+protected:
+    std::string generate_response(const std::string& text) override {
+        auto* provider_mgr = ProviderManager::getInstance();
+        if (!provider_mgr->hasProvider(current_provider_)) {
+            LOG_ERROR << "Provider unavailable: " << current_provider_;
+            return "";
+        }
+
+        auto response = provider_mgr->processRequest(current_provider_, text);
+        LOG_DEBUG << "Received response: " << response.content;
+        if (!response.content.empty()) {
+            history_.emplace_back("assistant", response.content);
+           // auralis_client_.synthesize_text(response.content, voice_style_, voice_temperature_);
+        }
+        
+        maintain_history();
+        return response.content;
+    }
 
 public:
-    BaseAgent(const std::string &agent_id, const json &cfg) :
-        Agent(agent_id, cfg)
+    explicit BaseAgent(const std::string& id, 
+                      std::shared_ptr<core::Configuration> config)
+        : Agent(id, config),
+          whisper_endpoint_(config->get<std::string>("services.whisper.url")),
+          auralis_endpoint_(config->get<std::string>("services.auralis.url"))
     {
-        whisper_client.connect("ws://localhost:9090");
-        auralis_client.connect("ws://localhost:9091");
-
-        whisper_client.set_transcription_callback([this](const std::string &text) {
-            LOG_INFO << "Agent " << id << " received transcription: " << text;
-            this->think(text);
-        });
-    }
-
-    void setSpeechCallback(SpeechCallbackData callback) override
-    {
-        speechCallback = callback;
-        auralis_client.set_audio_callback(speechCallback);
-    }
-
-    void think(const std::string &message) override
-    {
-        LOG_DEBUG << "Agent " << id << " thinks: " << message; 
-
-        history.push_back({"user", message});
-
-        std::string providerName = config.value("provider", "");
-
-        if (providerName.empty()) {
-            LOG_ERROR << "Provider not specified for agent " << id;
-            return;
-        }
-
-        if (!ProviderManager::getInstance()->hasProvider(providerName)) {
-            LOG_ERROR << "Provider " << providerName << " not found";
-            return;
-        }
-
-        // Build conversation history string
-        std::string conversation;
-        for (const auto &msg : history) {
-            conversation += msg.role + ": " + msg.content + "\n";
-        }
-
-        auto response = ProviderManager::getInstance()->processRequest(providerName, conversation);
+        setup_voice_parameters();
+        connect_services();
         
-        if (!response.content.empty()) {
-            LOG_INFO << "Agent " << providerName << id << " received response: " << response.content;
-
-            history.push_back({"assistant", response.content});
-            this->speak(response.content);
-        } else {
-            LOG_ERROR << "Agent " << id << " failed to process request";
-        }
-
-        // Maintain history size
-        while (history.size() > static_cast<size_t>(stmCapacity)) {
-            history.erase(history.begin());
-        }
-    }
-
-    void listen(const std::vector<int16_t> &audio_data) override
-    {
-        LOG_DEBUG << "Agent " << id << " received audio data";
-        whisper_client.send_audio(audio_data);
-    }
-
-    void speak(const std::string &text) override
-    {
-        LOG_DEBUG << "Agent " << id << " speaks: " << text << " (provider: auralis)";
-
-        // Configure status callback for logging
-        auralis_client.set_status_callback([this](const std::string &status) {
-            LOG_DEBUG << "Agent " << id << " received status: " << status;
+        config_->add_observer("voice", [this](const auto&) {
+            setup_voice_parameters();
         });
-
-        // Send text for synthesis
-        std::string voice = config.value("voice", "default");
-        float temperature = config.value("temperature", 0.5f);
-        auralis_client.synthesize_text(text, voice, true, temperature);
     }
 
-    void configure(const json &newConfig) override
-    {
-        config.merge_patch(newConfig);
-        LOG_DEBUG << "Agent " << id << " updated config: " << config.dump();
+    void set_speech_callback(SpeechCallback callback) override {
+        auralis_client_.set_audio_callback(std::move(callback));
+    }
+
+    std::string process_message(const std::string& message) override {
+        LOG_DEBUG << "Processing message: " << message;
+        history_.emplace_back("user", message);
+        return generate_response(message);
+    }
+
+    void process_audio(const std::vector<int16_t>& audio_data) override {
+        whisper_client_.send_audio(audio_data);
+    }
+
+    void bulk_configure(const json& patch) {
+        auto txn = config_->json_transaction(patch);
+        txn.commit();
     }
 };
 
 class AgentManager {
 public:
-    std::shared_ptr<Agent> createAgent(const std::string &id,
-        const std::string &type,
-        const json &cfg)
+    explicit AgentManager(std::shared_ptr<core::Configuration> config)
+        : global_config_(std::move(config))
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        if (agents_.find(id) != agents_.end()) {
-            return agents_[id];
-        }
-
-        std::shared_ptr<Agent> agentPtr;
-        if (type == "BaseAgent") {
-            agentPtr = std::make_shared<BaseAgent>(id, cfg);
-        } else {
-            agentPtr = std::make_shared<BaseAgent>(id, cfg);
-        }
-        agents_[id] = agentPtr;
-        return agentPtr;
+        setup_config_observers();
+        initialize_agents();
     }
 
-    std::shared_ptr<Agent> getAgent(const std::string &id)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (agents_.find(id) != agents_.end()) {
-            return agents_[id];
+    std::vector<std::shared_ptr<Agent>> getAgents() {
+        std::lock_guard lock(mutex_);
+        std::vector<std::shared_ptr<Agent>> result;
+        for (const auto& [_, agent] : agents_) {
+            result.push_back(agent);
         }
-        return nullptr;
+        return result;
     }
 
-    std::vector<std::shared_ptr<Agent>> getAgents()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::vector<std::shared_ptr<Agent>> agents;
-        for (const auto &[id, agent]: agents_) {
-            agents.push_back(agent);
-        }
-        return agents;
+    std::shared_ptr<core::Configuration> getConfig() {
+        return global_config_;
     }
 
-    bool updateAgentConfig(const std::string &agentId, const json &newConfig)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (agents_.find(agentId) != agents_.end()) {
-            agents_[agentId]->configure(newConfig);
-            return true;
-        }
-        return false;
+    std::shared_ptr<Agent> getAgent(const std::string& id) {
+        return get_agent(id);
     }
 
-    bool removeAgent(const std::string &id)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return agents_.erase(id) > 0;
+    std::shared_ptr<Agent> create_agent(const std::string& id) {
+        std::lock_guard lock(mutex_);
+        
+        if (auto it = agents_.find(id); it != agents_.end()) {
+            return it->second;
+        }
+
+        auto agent_config = global_config_->create_scoped_config("agents." + id);
+        configure_agent_defaults(*agent_config);
+        
+        auto agent = std::make_shared<BaseAgent>(id, agent_config);
+        agents_[id] = agent;
+        return agent;
+    }
+
+    std::shared_ptr<Agent> get_agent(const std::string& id) {
+        std::lock_guard lock(mutex_);
+        auto it = agents_.find(id);
+        return (it != agents_.end()) ? it->second : nullptr;
+    }
+
+    void update_agent_config(const std::string& id, 
+                           const std::string& key_path,
+                           const std::string& value) {
+        if (auto agent = get_agent(id)) {
+            agent->configure(key_path, value);
+        }
+    }
+
+    void remove_agent(const std::string& id) {
+        std::lock_guard lock(mutex_);
+        if (auto it = agents_.find(id); it != agents_.end()) {
+            agents_.erase(it);
+        }
     }
 
 private:
+    void setup_config_observers() {
+        global_config_->add_observer("agents", [this](const auto&) {
+            sync_agents_with_config();
+        });
+    }
+
+    void initialize_agents() {
+        try {
+            auto agent_ids = global_config_->get<std::vector<std::string>>("agents.ids");
+            for (const auto& id : agent_ids) {
+                try {
+                    create_agent(id);
+                } catch (const std::exception& e) {
+                    LOG_ERROR << "Failed to initialize agent " << id << ": " << e.what();
+                }
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR << "Failed to get agent IDs: " << e.what();
+        }
+    }
+
+    void sync_agents_with_config() {
+        std::lock_guard lock(mutex_);
+        auto current_agents = global_config_->get<std::vector<std::string>>("agents.ids");
+        
+        // Remove obsolete agents
+        std::vector<std::string> to_remove;
+        for (const auto& [id, _] : agents_) {
+            if (std::find(current_agents.begin(), current_agents.end(), id) == current_agents.end()) {
+                to_remove.push_back(id);
+            }
+        }
+        for (const auto& id : to_remove) {
+            agents_.erase(id);
+        }
+
+        // Add new agents
+        for (const auto& id : current_agents) {
+            if (agents_.find(id) == agents_.end()) {
+                create_agent(id);
+            }
+        }
+    }
+
+    void configure_agent_defaults(core::Configuration& config) {
+        try {
+            core::Configuration::Transaction tx(config);
+            tx.data()["stm_capacity"] = 15;
+            tx.data()["provider"] = "groq";
+            tx.data()["services"] = {
+                {"whisper", {{"url", "ws://localhost:9090"}}},
+                {"auralis", {{"url", "ws://localhost:9091"}}}
+            };
+            tx.data()["voice"] = {
+                {"style", "neutral"},
+                {"temperature", 0.7}
+            };
+            tx.commit();
+        } catch (const std::exception& e) {
+            LOG_ERROR << "Failed to configure agent defaults: " << e.what();
+            throw;
+        }
+    }
+
+    std::shared_ptr<core::Configuration> global_config_;
     std::unordered_map<std::string, std::shared_ptr<Agent>> agents_;
     std::mutex mutex_;
 };
