@@ -26,7 +26,7 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
             auto format = portInfo.format;
             if (direction == Call::INCOMING) {
                 LOG_DEBUG << "Incoming call from " << ci.remoteUri;
-                agent->process_message("Привет, я твой ассистент.");
+                agent->generate_audio("Привет, я твой ассистент.");
 
                 //   agent->sendText("Привет, я твой ассистент.");
             }

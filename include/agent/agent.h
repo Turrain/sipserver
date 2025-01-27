@@ -18,14 +18,17 @@ public:
 
     explicit Agent(core::ScopedConfiguration config);
     virtual ~Agent() = default;
+    
     const core::ScopedConfiguration& config() const { return config_; }
     void configure(const std::string & path, const nlohmann::json& patch);
+
+
     virtual std::string process_message(const std::string& message) = 0;
     virtual void process_audio(const std::vector<int16_t>& audio_data) = 0;
     virtual std::string generate_response(const std::string& text) = 0;
     virtual void set_speech_callback(SpeechCallback callback) = 0;
+    virtual void generate_audio(const std::string& text) = 0;
 
-    void think(const std::string& input) { process_message(input); }
 
 protected:
     void maintain_history();
@@ -41,7 +44,8 @@ public:
     void set_speech_callback(SpeechCallback callback) override;
     std::string process_message(const std::string& message) override;
     void process_audio(const std::vector<int16_t>& audio_data) override;
-
+    void generate_audio(const std::string& text) override;
+    
 protected:
     std::string generate_response(const std::string& text) override;
 

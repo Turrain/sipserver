@@ -79,6 +79,16 @@ std::string BaseAgent::generate_response(const std::string& text) {
     return response.content;
 }
 
+void BaseAgent::generate_audio(const std::string& text) {
+    auto voice_style_opt = config_.get<std::string>("/voice/style");
+    auto temperature_opt = config_.get<float>("/voice/temperature");
+
+    std::string voice_style = voice_style_opt;
+    float temperature = temperature_opt;
+
+    auralis_client_->synthesize_text(text, voice_style, temperature);
+}
+
 void BaseAgent::connect_services() {
     try {
         auto whisper_opt = config_.get<std::string>("/services/whisper/url");
