@@ -27,6 +27,8 @@ static void runTestMode(core::Configuration config)
 
     // Create test agent
     auto agent = agentManager->create_agent("test-agent");
+    auto sa = agentManager->get_agents()[0];
+    LOG_DEBUG << sa->config().getData().dump(4);
     if (!agent) {
         LOG_ERROR << "Failed to create test agent";
         return;
@@ -70,10 +72,11 @@ int main(int argc, char *argv[])
 
     core::Configuration core;
     core.loadFromFile("config.json");
-    auto parser = core::CLIParser({ { "test", "t", core::CLIArgument::Type::Boolean, "Enable test" } });
+    auto parser = core::CLIParser({ { "test", "t", core::CLIArgument::Type::Boolean, "Enable test" }});
+  
     auto parsed = parser.parse(argc, argv);
     core.set("/cli",parsed);
-
+    
     LOG_CRITICAL << core.getData().dump(4);
 
     try {
@@ -82,10 +85,8 @@ int main(int argc, char *argv[])
             LOG_CRITICAL << "Test mode enabled";
             runTestMode(core);
         } else {
-            // Create a shared_ptr that doesn't delete the config object
-   
-            //Server server(configPtr);
-           // server.run();
+            Server server(core);
+            server.run();
         }
     } catch (const std::exception &e) {
         std::cerr << "Initialization Error: " << e.what() << std::endl;

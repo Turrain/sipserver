@@ -1,15 +1,15 @@
 #pragma once
+#include "common/message.h"
 #include "core/configuration.h"
 #include "utils/logger.h"
-#include "common/message.h"
 #include <sol/sol.hpp>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <any>
+#include <deps/json.hpp>
 #include <httplib.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
-#include <deps/json.hpp>
 
 using Messages = std::vector<Message>;
 using json = nlohmann::json;
@@ -18,14 +18,56 @@ struct ProviderResponse {
     std::string content;
     std::unordered_map<std::string, std::any> metadata;
 
-    bool operator==(const ProviderResponse& other) const {
+    bool operator==(const ProviderResponse &other) const
+    {
         return content == other.content;
     }
 
-    bool operator!=(const ProviderResponse& other) const {
+    bool operator!=(const ProviderResponse &other) const
+    {
         return !(*this == other);
     }
 };
+inline sol::object json_to_sol(lua_State *L, const json &j)
+{
+    sol::state_view lua(L);
+    if (j.is_object()) {
+        sol::table t = lua.create_table();
+        for (auto &[key, val]: j.items()) {
+            t[key] = json_to_sol(L, val);
+        }
+        return t;
+    } else if (j.is_array()) {
+        sol::table t = lua.create_table();
+        size_t index = 1;
+        for (const auto &elem: j) {
+            t[index++] = json_to_sol(L, elem);
+        }
+        return t;
+    } else if (j.is_string()) {
+        return sol::make_object(L, j.get<std::string>());
+    } else if (j.is_number()) {
+        return sol::make_object(L, j.get<double>());
+    } else if (j.is_boolean()) {
+        return sol::make_object(L, j.get<bool>());
+    } else if (j.is_null()) {
+        return sol::make_object(L, sol::lua_nil);
+    }
+    return sol::make_object(L, sol::lua_nil);
+}
+
+namespace sol {
+namespace stack {
+
+inline int push(lua_State *L, const json &j)
+{
+    sol::state_view lua(L);
+    sol::object obj = json_to_sol(lua, j);
+    return stack::push(L, obj);
+}
+
+} // namespace stack
+} // namespace sol
 
 class LuaProvider {
 public:
@@ -34,24 +76,23 @@ public:
         request_fn_(std::move(request_fn)) { }
 
     ProviderResponse send_request(const std::string &input,
-        const std::unordered_map<std::string, std::any> &options = {})
+        nlohmann::json options = {})
     {
         sol::state lua;
         lua.open_libraries(sol::lib::base, sol::lib::package,
             sol::lib::table, sol::lib::string);
 
-        lua["print"] = [](const std::string& msg) {
+        lua["print"] = [](const std::string &msg) {
             LOG_DEBUG << "[Lua] " << msg;
         };
-        
-        LOG_DEBUG << "Lua function called";
 
-        sol::table lua_options = create_lua_table(lua, options);
+        LOG_DEBUG << "Lua function called";
+        LOG_WARNING << options.dump(2);
 
         try {
             // Call the Lua function
-            sol::protected_function_result result = request_fn_(config_, input, lua_options);
-       
+            sol::protected_function_result result = request_fn_(config_, input, options);
+
             // Check if the result is valid
             if (!result.valid()) {
                 sol::error err = result;
@@ -156,25 +197,27 @@ private:
 
 class LuaProviderManager {
 public:
-    LuaProviderManager() {
+    LuaProviderManager()
+    {
         initialize_lua_bindings();
     }
 
-    void configure(const nlohmann::json& providers_config) {
+    void configure(const nlohmann::json &providers_config)
+    {
         providers_.clear(); // Clear existing providers
         try {
-            for (const auto &[name, provider] : providers_config.items()) {
+            for (const auto &[name, provider]: providers_config.items()) {
                 if (!provider["enabled"].get<bool>())
                     continue;
                 LOG_DEBUG << "Loading provider: " << name;
                 try {
                     // Create provider config table in the global Lua state
                     sol::table provider_config = lua_.create_table();
-                    
+
                     // Load provider's config overrides
                     if (provider.contains("config")) {
-                        const auto& overrides = provider["config"];
-                        for (const auto& [key, value] : overrides.items()) {
+                        const auto &overrides = provider["config"];
+                        for (const auto &[key, value]: overrides.items()) {
                             if (value.is_string()) {
                                 provider_config[key] = value.get<std::string>();
                             } else if (value.is_number()) {
@@ -205,7 +248,7 @@ public:
 
     ProviderResponse call_provider(const std::string &name,
         const std::string &input,
-        const std::unordered_map<std::string, std::any> &options = {})
+        nlohmann::json options = {})
     {
         LOG_DEBUG << "Calling provider: " << name;
         auto it = providers_.find(name);
@@ -217,7 +260,8 @@ public:
         providers_[name] = std::make_unique<LuaProvider>(std::move(config), std::move(request_fn));
     }
 
-    bool has_provider(const std::string &name) const {
+    bool has_provider(const std::string &name) const
+    {
         return providers_.find(name) != providers_.end();
     }
 
@@ -225,11 +269,11 @@ private:
     void initialize_lua_bindings()
     {
         lua_.open_libraries(sol::lib::base, sol::lib::package, sol::lib::table, sol::lib::string, sol::lib::math);
-        
-        lua_["print"] = [](const std::string& msg) {
+
+        lua_["print"] = [](const std::string &msg) {
             LOG_DEBUG << "[Lua] " << msg;
         };
-       
+
         sol::table package = lua_["package"];
         std::string current_path = package["path"];
         package["path"] = current_path + ";./lua/?.lua";

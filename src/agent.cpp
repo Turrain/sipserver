@@ -55,21 +55,21 @@ void BaseAgent::process_audio(const std::vector<int16_t>& audio_data) {
 std::string BaseAgent::generate_response(const std::string& text) {
     auto provider_mgr = ProviderManager::getInstance();
     auto provider_opt = config_.get<std::string>("/provider");
-    
+  
     
     if (!provider_mgr->hasProvider(provider_opt)) {
         LOG_ERROR << "Provider unavailable: " << provider_opt;
         return "";
     }
 
-    auto response = provider_mgr->processRequest(provider_opt, text);
+    auto provider_options = config_.get<nlohmann::json>("/provider_options");
+
+    auto response = provider_mgr->processRequest(provider_opt, text, provider_options);
     LOG_DEBUG << "Received response: " << response.content;
 
     if (!response.content.empty()) {
         std::lock_guard<std::mutex> lock(history_mutex_);
         history_.emplace_back("assistant", response.content);
-
-        
         // std::string voice_style = style_opt.value_or("neutral");
         // float temperature = temp_opt.value_or(0.7);
         // auralis_client_->synthesize_text(response.content, voice_style, static_cast<float>(temperature));
@@ -136,18 +136,24 @@ std::shared_ptr<Agent> AgentManager::create_agent(const std::string& id) {
         config_.set("/" + id, {
             {"id", id},
             {"type", "base"},
-            {"provider", "groq"},
             {"stm_capacity", 15},
+
             {"voice", {
                 {"style", "neutral"},
                 {"temperature", 0.7}
             }},
+
+            {"provider", "groq"},
+            {"provider_options", {
+                {"model", "gpt2"},
+                {"temperature", 0.7},
+                {"max_tokens", 100}
+            }},
+
             {"services", {
                 {"whisper", {{"url", "http://localhost:8080/whisper"}}},
                 {"auralis", {{"url", "http://localhost:8080/auralis"}}}
             }}
-
-            
         });
         config_.commit();
         auto agent_config = core::ScopedConfiguration(config_, "/agents/" + id);

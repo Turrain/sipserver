@@ -18,15 +18,8 @@ public:
 
     explicit Agent(core::ScopedConfiguration config);
     virtual ~Agent() = default;
-
-    // Get agent ID from config
-
     const core::ScopedConfiguration& config() const { return config_; }
-
-    // Configure agent settings using a JSON patch
     void configure(const std::string & path, const nlohmann::json& patch);
-
-    // Core functionality
     virtual std::string process_message(const std::string& message) = 0;
     virtual void process_audio(const std::vector<int16_t>& audio_data) = 0;
     virtual std::string generate_response(const std::string& text) = 0;

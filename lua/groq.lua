@@ -11,12 +11,18 @@ function groq.request_handler(config, input, options)
         ["Authorization"] = "Bearer " .. config.api_key,
         ["Content-Type"] = "application/json"
     }
-
+    for k, v in pairs(options) do
+        if type(v) == "table" then
+            print(tostring(k), "=>", "table")
+        else
+            print(tostring(k), "=>", tostring(v))
+        end
+    end
     -- Build the request body
     local request_body = {
-        model = options.model or config.model,
+        model = tostring(config.model),
         messages = {{role = "user", content = input}},
-        temperature = options.temperature or 0.7
+    --    temperature = options.temperature or 0.7
     }
 
     -- Encode the request body as JSON

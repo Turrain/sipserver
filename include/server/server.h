@@ -8,14 +8,14 @@
 
 class Server {
 public:
-    explicit Server(core::ScopedConfiguration config);
+    explicit Server(core::Configuration& config);
     ~Server();
     
     void run();
     void setupRoutes();
 
 private:
-    core::ScopedConfiguration m_config;
+    core::Configuration& m_config;
     std::shared_ptr<Manager> m_manager;
     std::shared_ptr<AgentManager> m_agentManager;
     httplib::Server m_server;

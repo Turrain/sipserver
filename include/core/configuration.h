@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <deps/json.hpp>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -11,8 +12,6 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
-#include <sstream>
-#include <fstream>
 using json = nlohmann::json;
 
 namespace std {
@@ -78,17 +77,20 @@ public:
         }
     }
 
-     const json& getData() const noexcept {
+    const json &getData() const noexcept
+    {
         return transaction_data_ ? *transaction_data_ : data_;
     }
 
     // Get scoped data (const version)
-    json getData(const json::json_pointer& scope) const {
+    json getData(const json::json_pointer &scope) const
+    {
         return get(scope);
     }
 
     // Get scoped data (string version)
-    json getData(const std::string& scope) const {
+    json getData(const std::string &scope) const
+    {
         return getData(json::json_pointer(scope));
     }
 
@@ -137,19 +139,22 @@ public:
         transaction_data_.reset();
         modified_paths_.clear();
     }
-     template<typename T>
-    T get(const json::json_pointer& path, const T& default_value = T{}) const {
-        const json& target = transaction_data_ ? *transaction_data_ : data_;
+    template<typename T>
+    T get(const json::json_pointer &path, const T &default_value = T {}) const
+    {
+        const json &target = transaction_data_ ? *transaction_data_ : data_;
         return target.value(path, default_value);
     }
 
     // Overload for string paths
     template<typename T>
-    T get(const std::string& path, const T& default_value = T{}) const {
+    T get(const std::string &path, const T &default_value = T {}) const
+    {
         return get<T>(json::json_pointer(path), default_value);
     }
 
-    json get(const std::string& path){
+    json get(const std::string &path)
+    {
         return get(json::json_pointer(path));
     }
     json get(const json::json_pointer &path) const
@@ -253,37 +258,30 @@ public:
 
     ScopedConfiguration(Configuration &core, const std::string &scope) :
         ScopedConfiguration(core, json::json_pointer(scope)) { }
-    
-    ScopedConfiguration(const ScopedConfiguration& other, const json::json_pointer &scope) :
+
+    ScopedConfiguration(const ScopedConfiguration &other, const json::json_pointer &scope) :
         ScopedConfiguration(other.core_, scope / other.scope_) { }
 
-  ScopedConfiguration(const ScopedConfiguration& other, const std::string &scope) :
+    ScopedConfiguration(const ScopedConfiguration &other, const std::string &scope) :
         ScopedConfiguration(other.core_, json::json_pointer(scope)) { }
 
     void beginTransaction() { core_.beginTransaction(); }
     void commit() { core_.commit(); }
     void rollback() { core_.rollback(); }
 
-    json get(const json::json_pointer &path) const
-    {
-        return core_.get(scope_ / path);
-    }
+ 
 
-    json get(const std::string &path) const
+    template<typename T>
+    T get(const json::json_pointer &path, const T &default_value = T {}) const
     {
-        return get(json::json_pointer(path));
-    }
-
-     template<typename T>
-    T get(const json::json_pointer& path, const T& default_value = T{}) const {
         return core_.get<T>(scope_ / path, default_value);
     }
 
     template<typename T>
-    T get(const std::string& path, const T& default_value = T{}) const {
+    T get(const std::string &path, const T &default_value = T {}) const
+    {
         return get<T>(json::json_pointer(path), default_value);
     }
-
 
     void set(const json::json_pointer &path, const json &value)
     {
@@ -295,16 +293,19 @@ public:
         set(json::json_pointer(path), value);
     }
 
-        json getData() const {
+    json getData() const
+    {
         return core_.get(scope_);
     }
 
     // Get relative data within scope
-    json getRelativeData(const json::json_pointer& path) const {
+    json getRelativeData(const json::json_pointer &path) const
+    {
         return core_.get(scope_ / path);
     }
 
-    json getRelativeData(const std::string& path) const {
+    json getRelativeData(const std::string &path) const
+    {
         return getRelativeData(json::json_pointer(path));
     }
 
