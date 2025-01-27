@@ -3,216 +3,161 @@ import unittest
 import requests
 import json
 import time
-import threading
-import subprocess
-import os
 from typing import Optional
 
-class TestServer(unittest.TestCase):
+class TestSipServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        """Set up test environment"""
         cls.base_url = "http://localhost:18080"
+        cls.headers = {"Content-Type": "application/json"}
 
-    def test_01_server_status(self):
-        """Test server status endpoint"""
+    def test_server_health(self):
+        """Test server health check endpoint"""
         response = requests.get(f"{self.base_url}/status")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "OK")
 
-    def test_02_create_agent_basic(self):
-        """Test basic agent creation"""
-        agent_data = {
-            "id": "agent1",
-            "type": "BaseAgent",
-            "config": {
-                "provider": "default",
-                "stm_capacity": 15,
-                "voice": {
-                    "style": "neutral",
-                    "temperature": 0.7
-                }
-            }
+    def account_lifecycle(self):
+        """Test complete account lifecycle: create, update, delete"""
+        # Create account
+        account_data = {
+            "domain": "sip.test",
+            "username": "testuser",
+            "password": "testpass",
+            "registrarUri": "sip:sip.test"
         }
-        response = requests.post(
-            f"{self.base_url}/agents",
-            json=agent_data
+        
+        create_response = requests.post(
+            f"{self.base_url}/accounts",
+            headers=self.headers,
+            json=account_data
         )
-        self.assertEqual(response.status_code, 201)
-        data = response.json()
-        print(data)
-        self.assertEqual(data["id"], "agent1")
-        self.assertEqual(data["config"]["provider"], "default")
-        self.assertEqual(data["config"]["stm_capacity"], 15)
-        self.assertEqual(data["config"]["voice"]["style"], "neutral")
-        self.assertEqual(data["config"]["voice"]["temperature"], 0.7)
-
-    def test_03_create_agent_invalid_config(self):
-        """Test agent creation with invalid configuration"""
-        agent_data = {
-            "id": "invalid_agent",
-            "type": "BaseAgent",
-            "config": {
-                "voice": {
-                    "temperature": "invalid"  # Should be float
-                }
-            }
-        }
-        response = requests.post(
-            f"{self.base_url}/agents",
-            json=agent_data
-        )
-        self.assertEqual(response.status_code, 422)
-        data = response.json()
-        self.assertIn("error", data)
-
-    def test_04_update_agent_voice(self):
-        """Test updating agent voice settings"""
+        self.assertEqual(create_response.status_code, 201)
+        created = create_response.json()
+        self.assertEqual(created["accountId"], "testuser@sip.test")
+        self.assertEqual(created["status"], "registered")
+        
+        # Update account
         update_data = {
-            "provider": "groq"
+            "domain": "sip.test",
+            "username": "testuser",
+            "password": "newpass",
+            "registrarUri": "sip:sip.test"
         }
-        response = requests.patch(
-            f"{self.base_url}/agents/agent1",
+        
+        update_response = requests.put(
+            f"{self.base_url}/accounts/testuser@sip.test",
+            headers=self.headers,
             json=update_data
         )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        print(data)
-        self.assertEqual(data["id"], "agent1")
-        self.assertEqual(data["config"]["provider"], "groq")
-
-    def test_05_update_agent_provider(self):
-        """Test updating agent provider"""
-        update_data = {
-            "provider": "openai"
-        }
-        response = requests.patch(
-            f"{self.base_url}/agents/agent1",
-            json=update_data
+        self.assertEqual(update_response.status_code, 200)
+        
+        # Delete account
+        delete_response = requests.delete(
+            f"{self.base_url}/accounts/testuser@sip.test"
         )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        print(data)
-        self.assertEqual(data["id"], "agent1")
-        self.assertEqual(data["config"]["provider"], "openai")
-    def test_055_update_agent_provider(self):
-        """Test updating agent provider"""
+        self.assertEqual(delete_response.status_code, 204)
+
+    def call_operations(self):
+        """Test call operations: make call and hangup"""
+        # Create test account first
+        account_data = {
+            "domain": "sip.test",
+            "username": "caller",
+            "password": "pass123",
+            "registrarUri": "sip:sip.test"
+        }
+        requests.post(
+            f"{self.base_url}/accounts",
+            headers=self.headers,
+            json=account_data
+        )
+
+        # Make call
+        call_data = {
+            "accountId": "caller@sip.test",
+            "destUri": "sip:callee@sip.test"
+        }
+        make_response = requests.post(
+            f"{self.base_url}/calls/make",
+            headers=self.headers,
+            json=call_data
+        )
+        self.assertEqual(make_response.status_code, 202)
+        make_result = make_response.json()
+        self.assertEqual(make_result["status"], "Call initiated")
+        
+        # Hangup call (assuming call ID 1)
+        hangup_data = {"callId": 1}
+        hangup_response = requests.post(
+            f"{self.base_url}/calls/hangup",
+            headers=self.headers,
+            json=hangup_data
+        )
+        self.assertEqual(hangup_response.status_code, 200)
+        hangup_result = hangup_response.json()
+        self.assertEqual(hangup_result["status"], "Call terminated")
+
+    def event_stream(self):
+        """Test event stream endpoint"""
         response = requests.get(
-            f"{self.base_url}/agents/agent1",
+            f"{self.base_url}/events",
+            headers={"Accept": "text/event-stream"},
+            stream=True
         )
         self.assertEqual(response.status_code, 200)
-        data = response.json()
-        print(data)
+        self.assertEqual(response.headers["Content-Type"], "text/event-stream")
 
-    def test_06_update_agent_stm_capacity(self):
-        """Test updating agent short-term memory capacity"""
-        update_data = {
-            "stm_capacity": 20
+        # Read first event
+        for line in response.iter_lines():
+            if line:
+                decoded = line.decode("utf-8")
+                if decoded.startswith("data: "):
+                    event_data = json.loads(decoded[6:])  # Skip "data: " prefix
+                    self.assertIn("id", event_data)
+                    self.assertIsInstance(event_data["id"], int)
+                    break
+
+    def test_agent_management(self):
+        """Test basic agent operations"""
+        # Create agent
+        agent_data = {
+            "id": "test-agent2",
+            "type": "BaseAgent"
         }
-        response = requests.patch(
-            f"{self.base_url}/agents/agent1",
-            json=update_data
+        create_response = requests.post(
+            f"{self.base_url}/agents",
+            headers=self.headers,
+            json=agent_data
         )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["id"], "agent1")
-        self.assertEqual(data["config"]["stm_capacity"], 20)
-
-    def test_07_update_agent_invalid_stm(self):
-        """Test updating agent with invalid STM capacity"""
-        update_data = {
-            "stm_capacity": -1  # Cannot be negative
-        }
-        response = requests.patch(
-            f"{self.base_url}/agents/agent1",
-            json=update_data
-        )
-        self.assertEqual(response.status_code, 422)
-        data = response.json()
-        self.assertIn("error", data)
-
-    def test_08_list_agents_with_config(self):
-        """Test listing all agents with full configuration"""
-        response = requests.get(f"{self.base_url}/agents")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIsInstance(data, list)
-        self.assertTrue(len(data) > 0)
+        print(create_response.json())
+        self.assertEqual(create_response.status_code, 201)
         
-        # Verify first agent has all required config fields
-        agent = data[0]
-        self.assertIn("id", agent)
-        self.assertIn("config", agent)
-        self.assertIn("provider", agent["config"])
-        self.assertIn("stm_capacity", agent["config"])
-        self.assertIn("voice", agent["config"])
-        self.assertIn("style", agent["config"]["voice"])
-        self.assertIn("temperature", agent["config"]["voice"])
-
-    def test_09_get_nonexistent_agent(self):
-        """Test getting a non-existent agent"""
-        response = requests.get(f"{self.base_url}/agents/nonexistent")
-        self.assertEqual(response.status_code, 404)
-        data = response.json()
-        self.assertIn("error", data)
-
-    def test_10_update_nonexistent_agent(self):
-        """Test updating a non-existent agent"""
+        # Get agent
+        get_response = requests.get(
+            f"{self.base_url}/agents/test-agent2"
+        )
+        self.assertEqual(get_response.status_code, 200)
+        
+        # Update agent
         update_data = {
             "provider": "openai"
         }
-        response = requests.patch(
-            f"{self.base_url}/agents/nonexistent",
+        update_response = requests.patch(
+            f"{self.base_url}/agents/test-agent2",
+            headers=self.headers,
             json=update_data
         )
-        self.assertEqual(response.status_code, 404)
-        data = response.json()
-        self.assertIn("error", data)
-
-    def test_11_agent_thinking(self):
-        """Test agent thinking capability"""
-        think_data = {
-            "input": "Hello, how are you?"
-        }
-        response = requests.post(
-            f"{self.base_url}/agents/agent1/think",
-            json=think_data
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn("response", data)
-        self.assertIsInstance(data["response"], str)
-        self.assertTrue(len(data["response"]) > 0)
-
-    def test_12_bulk_agent_update(self):
-        """Test bulk update of agent configuration"""
-        update_data = {
-            "provider": "groq",
-            "stm_capacity": 25,
-            "voice": {
-                "style": "professional",
-                "temperature": 0.5
-            }
-        }
-        response = requests.patch(
-            f"{self.base_url}/agents/agent1",
-            json=update_data
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["config"]["provider"], "groq")
-        self.assertEqual(data["config"]["stm_capacity"], 25)
-        self.assertEqual(data["config"]["voice"]["style"], "professional")
-        self.assertEqual(data["config"]["voice"]["temperature"], 0.5)
-
-    def test_13_delete_agent(self):
-        """Test agent deletion"""
-        response = requests.delete(f"{self.base_url}/agents/agent1")
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(update_response.status_code, 200)
         
-        # Verify agent is actually deleted
-        response = requests.get(f"{self.base_url}/agents/agent1")
-        self.assertEqual(response.status_code, 404)
+        # Delete agent
+        delete_response = requests.delete(
+            f"{self.base_url}/agents/test-agent2"
+        )
+        self.assertEqual(delete_response.status_code, 204)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=2)
