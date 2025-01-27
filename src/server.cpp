@@ -15,9 +15,7 @@ Server::Server(core::Configuration &config) :
 
     auto pdv = core::ScopedConfiguration(config, "/providers");
     providerManager->initialize(pdv);
-
     auto ags = core::ScopedConfiguration(config, "/agents");
-
     m_agentManager = std::make_shared<AgentManager>(ags);
     m_manager = std::make_shared<Manager>(m_agentManager);
     auto agent = m_agentManager->create_agent("test-agent");
@@ -99,11 +97,7 @@ void Server::setupRoutes()
         std::string accountId = req.matches[1];
         try {
             auto data = json::parse(req.body);
-
-            // Remove existing account
             m_manager->removeAccount(accountId);
-
-            // Add updated account
             m_manager->addAccount(
                 accountId,
                 data["domain"],
@@ -278,7 +272,6 @@ void Server::setupRoutes()
                     "application/json");
                 return;
             }
-
             auto text = agent->process_message(body["input"].get<std::string>());
             res.status = 200;
             res.set_content(json { { "text", text } }.dump(),
@@ -296,7 +289,6 @@ void Server::setupRoutes()
             std::string id = req.matches[1];
             auto patch = json::parse(req.body);
 
-            // Validate JSON structure
             if (!patch.is_object()) {
                 res.status = 400;
                 res.set_content(json { { "error", "Invalid JSON format" } }.dump(),
@@ -304,7 +296,6 @@ void Server::setupRoutes()
                 return;
             }
 
-            // Check if agent exists
             auto agent = m_agentManager->get_agent(id);
             if (!agent) {
                 res.status = 404;
@@ -313,26 +304,25 @@ void Server::setupRoutes()
                 return;
             }
 
-            // Validate configuration values
-            if (patch.contains("stm_capacity") && patch["stm_capacity"].get<int>() < 0) {
-                res.status = 422;
-                res.set_content(json { { "error", "Invalid stm_capacity value" } }.dump(),
-                    "application/json");
-                return;
+            // Handle configuration updates
+            for (const auto& [path, value] : patch.items()) {
+                agent->configure("/" + path, value);
             }
-            //      agent->configure(patch);
 
             res.status = 200;
             res.set_content(json {
                                 { "id", id },
-                                //  {"config", agent->config()->get_json()}
-                            }
-                                .dump(),
+                                { "status", "updated" }
+                            }.dump(),
                 "application/json");
 
         } catch (const json::exception &e) {
             res.status = 400;
             res.set_content(json { { "error", "Invalid JSON" } }.dump(),
+                "application/json");
+        } catch (const std::exception &e) {
+            res.status = 500;
+            res.set_content(json { { "error", e.what() } }.dump(),
                 "application/json");
         }
     });
