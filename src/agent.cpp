@@ -136,22 +136,21 @@ std::shared_ptr<Agent> AgentManager::create_agent(const std::string& id) {
         config_.set("/" + id, {
             {"id", id},
             {"type", "base"},
-            {"provider", "default"},
+            {"provider", "groq"},
             {"stm_capacity", 15},
             {"voice", {
                 {"style", "neutral"},
                 {"temperature", 0.7}
             }},
-            {
-                "services",
-                {
-                    {"whisper", {"url", "http://localhost:8080/whisper"}},
-                    {"auralis", {"url", "http://localhost:8080/auralis"}}
-                }
-            }
+            {"services", {
+                {"whisper", {{"url", "http://localhost:8080/whisper"}}},
+                {"auralis", {{"url", "http://localhost:8080/auralis"}}}
+            }}
+
+            
         });
         config_.commit();
-        auto agent_config = core::ScopedConfiguration(config_, "/" + id);
+        auto agent_config = core::ScopedConfiguration(config_, "/agents/" + id);
         auto agent = std::make_shared<BaseAgent>(std::move(agent_config));
         agents_.emplace(id, agent);
         return agent;

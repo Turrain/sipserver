@@ -52,7 +52,7 @@ static void runTestMode(core::Configuration config)
 
         try {
             auto start = std::chrono::high_resolution_clock::now();
-            std::string a = agent->process_message(input);
+            std::string a = agent2->process_message(input);
             LOG_DEBUG << a;
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

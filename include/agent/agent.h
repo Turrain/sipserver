@@ -12,16 +12,6 @@
 #include <unordered_map>
 #include <vector>
 
-namespace {
-    constexpr char CONFIG_STM_CAPACITY[] = "stm_capacity";
-    constexpr char CONFIG_PROVIDER[] = "provider";
-    constexpr char CONFIG_ID[] = "id";
-    constexpr char CONFIG_SERVICES_WHISPER_URL[] = "services.whisper.url";
-    constexpr char CONFIG_SERVICES_AURALIS_URL[] = "services.auralis.url";
-    constexpr char CONFIG_VOICE_STYLE[] = "voice.style";
-    constexpr char CONFIG_VOICE_TEMPERATURE[] = "voice.temperature";
-}
-
 class Agent {
 public:
     using SpeechCallback = std::function<void(const std::vector<int16_t>&)>;
