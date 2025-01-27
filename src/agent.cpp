@@ -153,16 +153,15 @@ std::shared_ptr<Agent> AgentManager::create_agent(const std::string& id) {
                 {"temperature", 0.7}
             }},
 
-            {"provider", "groq"},
+            {"provider", "ollama"},
             {"provider_options", {
-                {"model", "gpt2"},
+                {"model", "llama3.2:1b"},
                 {"temperature", 0.7},
-                {"max_tokens", 100}
             }},
 
             {"services", {
-                {"whisper", {{"url", "http://localhost:8080/whisper"}}},
-                {"auralis", {{"url", "http://localhost:8080/auralis"}}}
+                {"whisper", {{"url", "http://localhost:8765"}}},
+                {"auralis", {{"url", "http://localhost:8766"}}}
             }}
         });
         config_.commit();

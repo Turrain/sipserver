@@ -219,10 +219,12 @@ void Server::setupRoutes()
                 return;
             }
 
+            //id
             const auto &id = body["id"].get<std::string>();
-            const auto type = body.value("type", "BaseAgent");
-            const auto &config_patch = body.value("config", json::object());
-
+            //provider
+            const auto &provider = body.value("provider", "ollama");    
+            //provider_options
+            const auto &config_patch = body.value("provider_options", json::object());
             // Check if agent already exists
             if (m_agentManager->get_agent(id)) {
                 res.status = 409;
@@ -230,15 +232,18 @@ void Server::setupRoutes()
                     "application/json");
                 return;
             }
-
+   
             auto agent = m_agentManager->create_agent(id);
+
+            
+            // Update agent configuration
+            for (const auto& [path, value] : config_patch.items()) {
+                agent->configure("/" + path, value);
+            }
+            
             if (agent) {
                 res.status = 201;
-                res.set_content(json {
-                                    { "id", id },
-                                    //       {"config", agent->config()->get_json()}
-                                }
-                                    .dump(),
+                res.set_content(agent->config().getData().dump(),
                     "application/json");
             } else {
                 res.status = 500;
