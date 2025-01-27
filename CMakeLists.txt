@@ -39,6 +39,7 @@ target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
 # Add debug symbols only in Debug build, and set release options
 target_compile_options(server PRIVATE
     $<$<CONFIG:Debug>:-g>
+    -Wno-notes
 )
 
 # Linker flags (rdynamic for symbol visibility in Release)

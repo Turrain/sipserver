@@ -1,30 +1,43 @@
-
+#include <chrono>
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <regex>
 #include <string>
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "agent/agent.h"
 #include "core/configuration.h"
 #include "provider/lua_provider.h"
+#include "provider/provider_manager.h"
 #include "server/server.h"
+#include "utils/logger.h"
 
-void runTestMode(core::Configuration &config)
+// Function implementations
+static void runTestMode(core::Configuration config)
 {
     // Initialize components
     auto providerManager = ProviderManager::getInstance();
-    providerManager->initialize(config);
-
-    // Create agent manager with scoped configuration
-    auto agentConfig = config.create_scoped_config("agents");
-    auto agentManager = std::make_shared<AgentManager>(agentConfig);
+    auto pdv = core::ScopedConfiguration(config, "/providers");
+    LOG_CRITICAL << pdv.getData().dump(4);
+    providerManager->initialize(pdv);
+    auto cfg = core::ScopedConfiguration(config, "/agents");
+   // providerManager->processRequest("groq", "test");
+    // Create agent manager with shared configuration pointer
+    auto agentManager = std::make_shared<AgentManager>(cfg);
 
     // Create test agent
     auto agent = agentManager->create_agent("test-agent");
-
     if (!agent) {
         LOG_ERROR << "Failed to create test agent";
         return;
     }
+     auto agent2 = agentManager->create_agent("test-agent2");
+    if (!agent2) {
+        LOG_ERROR << "Failed to create test agent";
+        return;
+    }
+    agent->configure("/provider", "groq");
+  //  agent->configure("provider", "groq");
 
     // Interactive test loop
     std::string input;
@@ -39,11 +52,12 @@ void runTestMode(core::Configuration &config)
 
         try {
             auto start = std::chrono::high_resolution_clock::now();
-            std::string a =  agent->process_message(input);
+            std::string a = agent->process_message(input);
             LOG_DEBUG << a;
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
             std::cout << "Response time: " << duration.count() << "ms\n";
+            config.saveToFile("config_temp.json");
         } catch (const std::exception &e) {
             LOG_ERROR << "Error during think: " << e.what();
         }
@@ -52,56 +66,27 @@ void runTestMode(core::Configuration &config)
 
 int main(int argc, char *argv[])
 {
+    using json = nlohmann::json;
 
-    json defaults = R"({
-        "version": 1,
-        "default_provider": "openai",
-        "server": {
-            "host": "localhost",
-            "port": 18080
-        },
-        "services": {
-            "whisper": {
-                "url": "ws://localhost:9090"
-            },
-            "auralis": {
-                "url": "ws://localhost:9091"
-            }
-        },
-        "providers": {
-            "openai": {
-                "enabled": true,
-                "script_path": "lua/openai.lua",
-                "config": {
-                    "model": "gpt-4"
-                }
-            }
-        }
-    })"_json;
+    core::Configuration core;
+    core.loadFromFile("config.json");
+    auto parser = core::CLIParser({ { "test", "t", core::CLIArgument::Type::Boolean, "Enable test" } });
+    auto parsed = parser.parse(argc, argv);
+    core.set("/cli",parsed);
 
-    auto config = std::make_shared<core::Configuration>("config.json", defaults, false);
-    config->parse_command_line(argc, argv);
-
-    config->add_observer("providers.*", [](const auto &cfg) {
-        std::cout << "Provider configuration changed!\n";
-        std::cout << cfg.dump(4) << "\n";
-    });
-    // config.set("providers.groq.enabled", true);
-    auto test = config->get<int>("test");
-    LOG_CRITICAL << "Test mode: " << test;
-
-
-    // config.atomic_save();
-    //  Create AgentManager
+    LOG_CRITICAL << core.getData().dump(4);
 
     try {
-        if (test) {
-             runTestMode(*config);
+        auto test_mode = core.get<bool>("/cli/test");
+        if (test_mode) {
+            LOG_CRITICAL << "Test mode enabled";
+            runTestMode(core);
         } else {
-            Server server(config);
-            server.run();
+            // Create a shared_ptr that doesn't delete the config object
+   
+            //Server server(configPtr);
+           // server.run();
         }
-
     } catch (const std::exception &e) {
         std::cerr << "Initialization Error: " << e.what() << std::endl;
         return 1;

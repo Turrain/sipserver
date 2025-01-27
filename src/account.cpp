@@ -12,7 +12,7 @@ Account::Account(std::shared_ptr<AgentManager> agentManager) :
 void Account::setAgent(const std::string &agentId)
 {
     m_agentId = agentId;
-    m_agent = m_agentManager->getAgent(agentId);
+    m_agent = m_agentManager->get_agent(agentId);
 }
 
 std::shared_ptr<Agent> Account::getAgent() const

@@ -1,4 +1,3 @@
-
 #pragma once
 #include "agent/agent.h"
 #include "core/configuration.h"
@@ -9,14 +8,14 @@
 
 class Server {
 public:
-    explicit Server(std::shared_ptr<core::Configuration> config);
+    explicit Server(core::ScopedConfiguration config);
     ~Server();
     
     void run();
     void setupRoutes();
 
 private:
-    std::shared_ptr<core::Configuration> m_config;
+    core::ScopedConfiguration m_config;
     std::shared_ptr<Manager> m_manager;
     std::shared_ptr<AgentManager> m_agentManager;
     httplib::Server m_server;

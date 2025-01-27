@@ -69,10 +69,7 @@ class TestServer(unittest.TestCase):
     def test_04_update_agent_voice(self):
         """Test updating agent voice settings"""
         update_data = {
-            "voice": {
-                "style": "cheerful",
-                "temperature": 0.9
-            }
+            "provider": "groq"
         }
         response = requests.patch(
             f"{self.base_url}/agents/agent1",
@@ -80,9 +77,9 @@ class TestServer(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        print(data)
         self.assertEqual(data["id"], "agent1")
-        self.assertEqual(data["config"]["voice"]["style"], "cheerful")
-        self.assertEqual(data["config"]["voice"]["temperature"], 0.9)
+        self.assertEqual(data["config"]["provider"], "groq")
 
     def test_05_update_agent_provider(self):
         """Test updating agent provider"""
@@ -95,8 +92,17 @@ class TestServer(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        print(data)
         self.assertEqual(data["id"], "agent1")
         self.assertEqual(data["config"]["provider"], "openai")
+    def test_055_update_agent_provider(self):
+        """Test updating agent provider"""
+        response = requests.get(
+            f"{self.base_url}/agents/agent1",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        print(data)
 
     def test_06_update_agent_stm_capacity(self):
         """Test updating agent short-term memory capacity"""

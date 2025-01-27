@@ -7,16 +7,20 @@
 
 using json = nlohmann::json;
 
-Server::Server(std::shared_ptr<core::Configuration> config)
+Server::Server(core::ScopedConfiguration  config)
     : m_config(config)
 {
-    // Create scoped configurations for different components
-    auto agentConfig = m_config->create_scoped_config("agents");
-    auto serverConfig = m_config->create_scoped_config("server");
+    // Create scoped configuration for server component
+
     auto providerManager = ProviderManager::getInstance();
-    providerManager->initialize(*config);
-    // Initialize managers with scoped configurations
-    m_agentManager = std::make_shared<AgentManager>(agentConfig);
+    Logger::setMinLevel(Level::Debug);
+  
+    // config->add_observer("*", [](const auto& cfg) {
+    //     LOG_CRITICAL << "Config changed: " << cfg.dump(4);
+    // });
+     providerManager->initialize(config);
+    // Initialize managers
+    m_agentManager = std::make_shared<AgentManager>(m_config);
     m_manager = std::make_shared<Manager>(m_agentManager);
 
     setupRoutes();
@@ -28,8 +32,9 @@ Server::~Server() {
 
 void Server::run()
 {
-    const auto host = m_config->get<std::string>("server.host", true, true);
-    const auto port = m_config->get<int>("server.port", true, true);
+
+    const auto host = m_config.get<std::string>("server.host");
+    const auto port = m_config.get<int>("server.port");
     
     LOG_INFO << "Starting server on " << host << ":" << port;
     
@@ -206,15 +211,15 @@ void Server::setupRoutes()
 
 // GET /agents - List all agents
 m_server.Get("/agents", [this](const httplib::Request& req, httplib::Response& res) {
-    auto agents = m_agentManager->getAgents();
+    auto agents = m_agentManager->get_agents();
     json response = json::array();
 
     {
-        core::Configuration::Transaction tx(*m_agentManager->getConfig());
+        //core::Configuration::Transaction tx(*m_agentManager->getConfig());
         for (const auto& agent : agents) {
             response.push_back({
-                {"id", agent->id()},
-                {"config", tx.data()} // Thread-safe snapshot
+           //     {"id", agent->id()},
+           //     {"config", tx.data()} // Thread-safe snapshot
             });
         }
     }
@@ -239,7 +244,7 @@ m_server.Post("/agents", [this](const httplib::Request& req, httplib::Response& 
         const auto& config_patch = body.value("config", json::object());
 
         // Check if agent already exists
-        if (m_agentManager->getAgent(id)) {
+        if (m_agentManager->get_agent(id)) {
             res.status = 409;
             res.set_content(json{{"error", "Agent already exists"}}.dump(),
                           "application/json");
@@ -251,7 +256,7 @@ m_server.Post("/agents", [this](const httplib::Request& req, httplib::Response& 
             res.status = 201;
             res.set_content(json{
                 {"id", id},
-                {"config", agent->config()->get_json()}
+         //       {"config", agent->config()->get_json()}
             }.dump(), "application/json");
         } else {
             res.status = 500;
@@ -278,7 +283,7 @@ m_server.Post(R"(/agents/([^/]+)/think)", [this](const httplib::Request& req, ht
             return;
         }
 
-        auto agent = m_agentManager->getAgent(id);
+        auto agent = m_agentManager->get_agent(id);
         if (!agent) {
             res.status = 404;
             res.set_content(json{{"error", "Agent not found"}}.dump(),
@@ -312,7 +317,7 @@ m_server.Patch(R"(/agents/([^/]+))", [this](const httplib::Request& req, httplib
         }
 
         // Check if agent exists
-        auto agent = m_agentManager->getAgent(id);
+        auto agent = m_agentManager->get_agent(id);
         if (!agent) {
             res.status = 404;
             res.set_content(json{{"error", "Agent not found"}}.dump(), 
@@ -327,13 +332,13 @@ m_server.Patch(R"(/agents/([^/]+))", [this](const httplib::Request& req, httplib
                           "application/json");
             return;
         }
-        agent->configure(patch);
+  //      agent->configure(patch);
 
 
         res.status = 200;
         res.set_content(json{
             {"id", id},
-            {"config", agent->config()->get_json()}
+          //  {"config", agent->config()->get_json()}
         }.dump(), "application/json");
 
     } catch (const json::exception& e) {
@@ -347,12 +352,8 @@ m_server.Patch(R"(/agents/([^/]+))", [this](const httplib::Request& req, httplib
 m_server.Get("/agents/:id", [this](const httplib::Request& req, httplib::Response& res) {
     auto id = req.path_params.at("id");
     
-    if (auto agent = m_agentManager->getAgent(id)) {
-        core::Configuration::Transaction tx(*agent->config());
-            res.set_content(json{
-                {"id", id},
-                {"config", tx.data()}
-            }.dump(), "application/json");
+    if (auto agent = m_agentManager->get_agent(id)) {
+ //       res.set_content(agent->config()->get_json().dump(), "application/json");
     } else {
         res.status = 404;
         res.set_content(json{{"error", "Agent not found"}}.dump(), 
