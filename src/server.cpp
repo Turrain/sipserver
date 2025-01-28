@@ -235,11 +235,9 @@ void Server::setupRoutes()
    
             auto agent = m_agentManager->create_agent(id);
 
-            
-            // Update agent configuration
-            for (const auto& [path, value] : config_patch.items()) {
-                agent->configure("/" + path, value);
-            }
+    
+            agent->configure("/provider", provider);
+            agent->configure("/provider_options", config_patch);
             
             if (agent) {
                 res.status = 201;

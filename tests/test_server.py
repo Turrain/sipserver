@@ -125,7 +125,7 @@ class TestSipServer(unittest.TestCase):
         # Create agent
         agent_data = {
             "id": "test-agent2",
-            "type": "BaseAgent"
+            "provider": "dify",
         }
         create_response = requests.post(
             f"{self.base_url}/agents",

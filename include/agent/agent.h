@@ -21,7 +21,7 @@ public:
     
     const core::ScopedConfiguration& config() const { return config_; }
     void configure(const std::string & path, const nlohmann::json& patch);
-
+    
 
     virtual std::string process_message(const std::string& message) = 0;
     virtual void process_audio(const std::vector<int16_t>& audio_data) = 0;

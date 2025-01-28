@@ -6,7 +6,6 @@ local json = require("dkjson")
 dify.config = get_provider_config()
 
 function dify.request_handler(config, input, options)
-    print("Config: " .. (config.model))
     local headers = {
         ["Authorization"] = "Bearer " .. config.api_key,
         ["Content-Type"] = "application/json"

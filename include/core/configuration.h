@@ -185,6 +185,25 @@ public:
     {
         set(json::json_pointer(path), value);
     }
+
+     void setJson(const json::json_pointer& path, const json& value, bool merge = false) 
+    {
+        if (merge) {
+            // Create a copy of existing data and merge
+            json current = get(path);
+            current.merge_patch(value);  // Merge happens in-place
+            set(path, current);
+        } else {
+            set(path, value);
+        }
+    }
+
+    void setJson(const std::string &path, const json &value, bool merge = false)
+    {
+        setJson(json::json_pointer(path), value, merge);
+    }
+
+
     void registerObserver(const json::json_pointer &path, Observer observer)
     {
         observers_.emplace_back(path, std::move(observer));
@@ -293,6 +312,15 @@ public:
         set(json::json_pointer(path), value);
     }
 
+    void setJson(const json::json_pointer& path, const json& value, bool merge = false) 
+    {
+        core_.setJson(scope_ / path, value, merge);
+    }
+
+    void setJson(const std::string& path, const json& value, bool merge = false) 
+    {
+        setJson(json::json_pointer(path), value, merge);
+    }
     json getData() const
     {
         return core_.get(scope_);
