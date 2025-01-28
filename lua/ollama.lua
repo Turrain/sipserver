@@ -12,7 +12,7 @@ function ollama.request_handler(config, input, options)
 
     -- Build the request body
     local request_body = {
-        model = options.model or config.model,
+        model = options[0] or config.model,
         messages = {{role = "user", content = input}},
         stream = options.stream or false
     }

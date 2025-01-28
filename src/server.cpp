@@ -258,9 +258,9 @@ void Server::setupRoutes()
     });
 
     // POST /agents/:id/think - Make agent think
-    m_server.Post(R"(/agents/([^/]+)/think)", [this](const httplib::Request &req, httplib::Response &res) {
+    m_server.Post("/agents/:id/think", [this](const httplib::Request &req, httplib::Response &res) {
         try {
-            std::string id = req.matches[1];
+            auto id = req.path_params.at("id");
             auto body = json::parse(req.body);
 
             if (!body.contains("input")) {
@@ -278,6 +278,7 @@ void Server::setupRoutes()
                 return;
             }
             auto text = agent->process_message(body["input"].get<std::string>());
+            LOG_DEBUG << text;
             res.status = 200;
             res.set_content(json { { "text", text } }.dump(),
                 "application/json");
@@ -313,6 +314,7 @@ void Server::setupRoutes()
             for (const auto& [path, value] : patch.items()) {
                 agent->configure("/" + path, value);
             }
+            LOG_DEBUG << agent->config().getData().dump(4);
 
             res.status = 200;
             res.set_content(json {

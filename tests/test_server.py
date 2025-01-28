@@ -139,19 +139,22 @@ class TestSipServer(unittest.TestCase):
         get_response = requests.get(
             f"{self.base_url}/agents/test-agent2"
         )
+        print(get_response.json())
         self.assertEqual(get_response.status_code, 200)
         
         # Update agent
         update_data = {
-            "provider": "openai"
+            "provider": "dify"
         }
         update_response = requests.patch(
             f"{self.base_url}/agents/test-agent2",
             headers=self.headers,
             json=update_data
         )
+        print(update_response.json())
         self.assertEqual(update_response.status_code, 200)
         
+     
         # Delete agent
         delete_response = requests.delete(
             f"{self.base_url}/agents/test-agent2"

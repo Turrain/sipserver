@@ -1,24 +1,19 @@
 {
     "agents": {
-        "test-agent": {
-            "provider": "openai",
-            "services": {
-                "auralis": {
-                    "url": "ws://localhost:9091"
-                },
-                "whisper": {
-                    "url": "ws://localhost:9090"
-                }
-            },
-            "stm_capacity": 10000,
-            "voice": {
-                "style": "neutral",
-                "temperature": 0.7
-            }
-        }
+     
     },
     "default_provider": "openai",
     "providers": {
+        "dify": {
+            "config": {
+                "api_key": "app-zDdSaAVvepmGzwVzup1S56lm",
+                "api_url": "http://sandbox.aitomaton.online",
+                "api_path": "/v1/chat-messages",
+                "model": "dify-1.0"
+            },
+            "enabled": true,
+            "script_path": "lua/dify.lua"
+        },
         "groq": {
             "config": {
                 "api_key": "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",
