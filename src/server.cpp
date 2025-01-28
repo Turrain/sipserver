@@ -60,21 +60,21 @@ void Server::setupRoutes()
                 return;
             }
 
-            std::string accountId = data["username"].get<std::string>() + "@" + data["domain"].get<std::string>();
+       
             std::string agentId = data.value("agentId", "");
 
             auto result = m_manager->addAccount(
-                accountId,
+                data["accountId"],
                 data["domain"],
                 data["username"],
                 data["password"],
                 data["registrarUri"],
                 agentId);
-
+           
             if (result.success) {
                 res.status = 201;
                 res.set_content(json {
-                                    { "accountId", accountId },
+                                    { "accountId", data["accountId"] },
                                     { "status", "registered" },
                                     { "message", result.message } }
                                     .dump(),

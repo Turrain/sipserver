@@ -24,10 +24,12 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
 
             auto portInfo = aud_med->getPortInfo();
             auto format = portInfo.format;
+            
             if (direction == Call::INCOMING) {
+                std::cout<<" Incoming call from " << ci.remoteUri;
                 LOG_DEBUG << "Incoming call from " << ci.remoteUri;
                 agent->generate_audio("Привет, я твой ассистент.");
-
+              //  agent->generate_response("Привет, я твой ассистент.");
                 //   agent->sendText("Привет, я твой ассистент.");
             }
             aud_med->startTransmit(mediaPort);
@@ -46,7 +48,7 @@ Call::Call(Account &acc, int call_id) :
     m_account(acc)
 {
     direction = OUTGOING;
-
+    LOG_WARNING << "CALL CREATED";
     this->getAgent()->set_speech_callback(
         [this](const std::vector<int16_t> &audio_data) {
             mediaPort.addToQueue(audio_data);

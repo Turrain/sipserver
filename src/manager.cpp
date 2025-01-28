@@ -121,7 +121,7 @@ void Manager::makeCall(const std::string &accountId, const std::string &destUri)
     enqueueTask([this, accountId, destUri]() {
         try {
             std::lock_guard<std::mutex> lock(m_accountsMutex);
-
+            auto t = m_accounts.find(accountId);
             auto accountIt = m_accounts.find(accountId);
             if (accountIt == m_accounts.end()) {
                 throw std::invalid_argument("Account not found: " + accountId);

@@ -80,12 +80,12 @@ std::string BaseAgent::generate_response(const std::string& text) {
 }
 
 void BaseAgent::generate_audio(const std::string& text) {
-    auto voice_style_opt = config_.get<std::string>("/voice/style");
-    auto temperature_opt = config_.get<float>("/voice/temperature");
+    auto voice_style_opt = "default";
+    auto temperature_opt = 0.7;
 
     std::string voice_style = voice_style_opt;
     float temperature = temperature_opt;
-
+    LOG_DEBUG << "Voice parameters: style=" << voice_style << ", temperature=" << temperature;
     auralis_client_->synthesize_text(text, voice_style, temperature);
 }
 
@@ -160,8 +160,8 @@ std::shared_ptr<Agent> AgentManager::create_agent(const std::string& id) {
             }},
 
             {"services", {
-                {"whisper", {{"url", "http://localhost:8765"}}},
-                {"auralis", {{"url", "http://localhost:8766"}}}
+                {"whisper", {{"url", "ws://37.151.89.206:8765"}}},
+                {"auralis", {{"url", "ws://37.151.89.206:8766"}}}
             }}
         });
         config_.commit();

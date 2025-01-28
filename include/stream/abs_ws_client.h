@@ -61,7 +61,7 @@ public:
 
         connection = conn->get_handle();
         client.connect(conn);
-
+        LOG_DEBUG << "Connecting to " << uri;
         client_thread = std::thread([this]() {
             try {
                 client.run();
