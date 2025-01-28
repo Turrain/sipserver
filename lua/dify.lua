@@ -17,8 +17,9 @@ function dify.request_handler(config, input, options)
     local request_body = {
         query = input,
         response_mode = "blocking",
-        conversation_id = options.conversation_id,
-        user = options.user_id or "default_user"
+       -- conversation_id = 0,
+        user = "default_user",
+        inputs = {}
     }
 
     -- Encode the request body as JSON

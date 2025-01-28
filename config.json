@@ -7,9 +7,8 @@
         "dify": {
             "config": {
                 "api_key": "app-zDdSaAVvepmGzwVzup1S56lm",
-                "api_url": "http://sandbox.aitomaton.online",
-                "api_path": "/v1/chat-messages",
-                "model": "dify-1.0"
+                "api_url": "https://sandbox.aitomaton.online",
+                "api_path": "/v1/chat-messages"
             },
             "enabled": true,
             "script_path": "lua/dify.lua"

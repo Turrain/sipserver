@@ -154,6 +154,10 @@ class TestSipServer(unittest.TestCase):
         print(update_response.json())
         self.assertEqual(update_response.status_code, 200)
         
+        print(requests.post(
+            f"{self.base_url}/agents/test-agent2/think",
+            json={"input": "Hello, world!"}
+        ))
      
         # Delete agent
         delete_response = requests.delete(
