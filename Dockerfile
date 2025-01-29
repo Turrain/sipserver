@@ -25,7 +25,9 @@ RUN apt-get update && \
         zip \
         unzip \
         tar \
-        pkg-config
+        pkg-config \ 
+        lua5.4 \ 
+        liblua5.4-dev
 
 RUN git config --global http.version HTTP/1.1
 
@@ -34,7 +36,7 @@ RUN git clone https://github.com/Microsoft/vcpkg.git /opt/vcpkg && \
     ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
 
 RUN vcpkg install websocketpp
-
+RUN vcpkg install sol2 lua
 ENV VCPKG_ROOT=/opt/vcpkg
 ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
 

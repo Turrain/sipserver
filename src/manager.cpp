@@ -45,9 +45,9 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
     const std::string &registrarUri,
     const std::string &agentId)
 {
-    std::promise<RegistrationStatus> registrationPromise;
-    auto registrationFuture = registrationPromise.get_future();
-    enqueueTask([this, accountId, domain, username, password, registrarUri, agentId, &registrationPromise]() {
+        auto registrationPromise = std::make_shared<std::promise<RegistrationStatus>>();
+    auto registrationFuture = registrationPromise->get_future();
+    enqueueTask([this, accountId, domain, username, password, registrarUri, agentId, registrationPromise]() {
         try {
             std::lock_guard<std::mutex> lock(m_accountsMutex);
 
@@ -66,12 +66,15 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
 
             auto account = std::make_unique<Account>(m_agentManager);
 
-            account->registerRegStateCallback([&registrationPromise](auto state, auto status) {
-                if (status == PJSIP_SC_OK) {
-                    registrationPromise.set_value({ true,
-                        "Registration successful",
-                        status });
-                }
+           account->registerRegStateCallback([registrationPromise](bool /*state*/, pj_status_t status) {
+                const bool success = (status == PJSIP_SC_OK);
+                RegistrationStatus result{
+                    success,
+                    success ? "Registration successful" 
+                            : "Registration failed with status: " + std::to_string(status),
+                    static_cast<int>(status)
+                };
+                registrationPromise->set_value(result);
             });
 
             account->create(accountConfig);
@@ -82,17 +85,12 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
             m_accounts[accountId] = std::move(account);
 
         } catch (const pj::Error &err) {
-            registrationPromise.set_value({ false,
-                "PJSIP Error: " + std::string(err.info()),
-                500 });
+            registrationPromise->set_value({ false, "PJSIP Error: " + std::string(err.info()), 500 });
         } catch (const std::exception &e) {
-            registrationPromise.set_value({ false,
-                "Error: " + std::string(e.what()),
-                500 });
+            registrationPromise->set_value({ false, "Error: " + std::string(e.what()), 500 });
         }
     });
-    auto status = registrationFuture.wait_for(std::chrono::seconds(20));
-    if (status == std::future_status::timeout) {
+     if (registrationFuture.wait_for(std::chrono::seconds(20)) == std::future_status::timeout) {
         return { false, "Registration timeout", 408 };
     }
     return registrationFuture.get();

@@ -35,12 +35,12 @@ curl -X POST http://localhost:18080/accounts \
 echo -e "\nWaiting for second account to register..."
 sleep 2
 
-curl -X POST http://localhost:18080/calls/make \
-  -H "Content-Type: application/json" \
-  -d '{
-    "accountId": "1000",
-    "destUri": "sip:1001@127.0.0.1"
-  }'
+# curl -X POST http://localhost:18080/calls/make \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "accountId": "1000",
+#     "destUri": "sip:1001@127.0.0.1"
+#   }'
 
 # Add first account (1000)
 # curl -X POST http://localhost:18080/accounts/add \

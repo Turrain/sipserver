@@ -25,11 +25,13 @@ void Account::registerRegStateCallback(onRegStateCallback cb)
     regStateCallback = std::move(cb);
 }
 
-void Account::onRegState(pj::OnRegStateParam &prm)
-{
+void Account::onRegState(pj::OnRegStateParam &prm) {
     pj::AccountInfo ai = getInfo();
     if (regStateCallback) {
-        regStateCallback(ai.regIsActive, ai.regStatus);
+        // Capture and reset callback to ensure single invocation
+        auto cb = std::move(regStateCallback);
+        regStateCallback = nullptr;
+        cb(ai.regIsActive, ai.regStatus);
     }
     LOG_DEBUG << "Registration status: " << ai.regStatus;
     LOG_DEBUG << "Registration active: " << ai.regIsActive;
