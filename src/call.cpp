@@ -65,6 +65,8 @@ Call::Call(Account &acc, int call_id) :
             LOG_DEBUG << "Speech started";
             mediaPort.clearQueue();
         });
+    
+    
 
     if (mediaPort.getPortId() == PJSUA_INVALID_ID) {
         auto mediaFormatAudio = pj::MediaFormatAudio();

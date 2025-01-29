@@ -5,18 +5,14 @@ local json = require("dkjson")
 -- Get config from C++
 groq.config = get_provider_config()
 
-function groq.request_handler(config, input, options)
+function groq.request_handler(config, input, options, history)
     print("Config: " .. (config.model))
     local headers = {
         ["Authorization"] = "Bearer " .. config.api_key,
         ["Content-Type"] = "application/json"
     }
-    for k, v in pairs(options) do
-        if type(v) == "table" then
-            print(tostring(k), "=>", "table")
-        else
-            print(tostring(k), "=>", tostring(v))
-        end
+    for _, msg in ipairs(history) do
+        print(msg.role .. ": " .. msg.content)
     end
     -- Build the request body
     local request_body = {

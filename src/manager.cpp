@@ -66,17 +66,24 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
 
             auto account = std::make_unique<Account>(m_agentManager);
 
-           account->registerRegStateCallback([registrationPromise](bool /*state*/, pj_status_t status) {
-                const bool success = (status == PJSIP_SC_OK);
-                RegistrationStatus result{
-                    success,
-                    success ? "Registration successful" 
-                            : "Registration failed with status: " + std::to_string(status),
-                    static_cast<int>(status)
-                };
-                registrationPromise->set_value(result);
-            });
+         account->registerRegStateCallback(
+                [registrationPromise, called = false](bool /*state*/, pj_status_t status) mutable {
+                    if (called) {
+                        return; // Ensure the promise is set only once
+                    }
+                    called = true;
 
+                    const bool success = (status == PJSIP_SC_OK);
+                    RegistrationStatus result{
+                        success,
+                        success ? "Registration successful"
+                                : "Registration failed with status: " + std::to_string(status),
+                        static_cast<int>(status)
+                    };
+                    if (registrationPromise) {
+                        registrationPromise->set_value(result);
+                    }
+                });
             account->create(accountConfig);
             if (!agentId.empty()) {
                 account->setAgent(agentId);
@@ -93,6 +100,7 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
      if (registrationFuture.wait_for(std::chrono::seconds(20)) == std::future_status::timeout) {
         return { false, "Registration timeout", 408 };
     }
+    
     return registrationFuture.get();
 }
 

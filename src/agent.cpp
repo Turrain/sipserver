@@ -14,6 +14,10 @@ void Agent::configure(const std::string & path, const nlohmann::json& patch) {
 
 void Agent::maintain_history() {
     std::lock_guard<std::mutex> lock(history_mutex_);
+for (const auto& entry : history_) {
+    LOG_DEBUG << "History - Role: " << entry.role << ", Message: " << entry.content;
+}
+
     auto capacity_opt = config_.get<size_t>("/stm_capacity");   
     auto stm_capacity = capacity_opt;
     if (history_.size() > stm_capacity) {
@@ -63,8 +67,8 @@ std::string BaseAgent::generate_response(const std::string& text) {
     }
 
     auto provider_options = config_.get<nlohmann::json>("/provider_options");
-
-    auto response = provider_mgr->processRequest(provider_opt, text, provider_options);
+    auto history = this->history_;
+    auto response = provider_mgr->processRequest(provider_opt, text, provider_options, history);
     LOG_DEBUG << "Received response: " << response.content;
 
     if (!response.content.empty()) {
@@ -101,7 +105,10 @@ void BaseAgent::connect_services() {
         auralis_client_->connect(auralis_url);
 
         whisper_client_->set_transcription_callback([this](const std::string& text) {
-            this->process_message(text);
+            std::string text_res = this->process_message(text);
+            if (!text_res.empty()) {
+                this->generate_audio(text);
+            }
         });
     } catch (const std::exception& e) {
         LOG_ERROR << "Service connection failed: " << e.what();

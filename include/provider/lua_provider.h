@@ -76,7 +76,7 @@ public:
         request_fn_(std::move(request_fn)) { }
 
     ProviderResponse send_request(const std::string &input,
-        nlohmann::json options = {})
+        nlohmann::json options = {}, Messages history = {})
     {
         sol::state lua;
         lua.open_libraries(sol::lib::base, sol::lib::package,
@@ -91,7 +91,7 @@ public:
 
         try {
             // Call the Lua function
-            sol::protected_function_result result = request_fn_(config_, input, options);
+            sol::protected_function_result result = request_fn_(config_, input, options, history);
 
             // Check if the result is valid
             if (!result.valid()) {
@@ -248,11 +248,11 @@ public:
 
     ProviderResponse call_provider(const std::string &name,
         const std::string &input,
-        nlohmann::json options = {})
+        nlohmann::json options = {}, Messages history = {})
     {
         LOG_DEBUG << "Calling provider: " << name;
         auto it = providers_.find(name);
-        return it != providers_.end() ? it->second->send_request(input, options) : ProviderResponse { "Provider not found", {} };
+        return it != providers_.end() ? it->second->send_request(input, options, history) : ProviderResponse { "Provider not found", {} };
     }
 
     void register_provider(const std::string &name, sol::table config, sol::function request_fn)
@@ -273,6 +273,11 @@ private:
         lua_["print"] = [](const std::string &msg) {
             LOG_DEBUG << "[Lua] " << msg;
         };
+
+        lua_.new_usertype<Message>("Message",
+            sol::constructors<Message(), Message(const std::string &, const std::string &)>(),
+            "role", &Message::role,
+            "content", &Message::content);
 
         sol::table package = lua_["package"];
         std::string current_path = package["path"];

@@ -23,8 +23,8 @@ public:
         return instance;
     }
 
-    ProviderResponse processRequest(const std::string& providerName, const std::string& input, nlohmann::json options = {}) {
-        return luaManager ? luaManager->call_provider(providerName, input, options) 
+    ProviderResponse processRequest(const std::string& providerName, const std::string& input, nlohmann::json options = {}, Messages history = {}) {
+        return luaManager ? luaManager->call_provider(providerName, input, options, history) 
                         : ProviderResponse{"Provider manager not initialized", {}};
     }
 
