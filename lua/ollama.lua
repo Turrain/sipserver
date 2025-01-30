@@ -5,7 +5,7 @@ local json = require("dkjson")
 -- Get config from C++
 ollama.config = get_provider_config()
 
-function ollama.request_handler(config, input, options)
+function ollama.request_handler(config, input, options, history)
     local headers = {
         ["Content-Type"] = "application/json"
     }
@@ -14,7 +14,7 @@ function ollama.request_handler(config, input, options)
     local request_body = {
         model = options[0] or config.model,
         messages = {{role = "user", content = input}},
-        stream = options.stream or false
+        stream = false
     }
 
     -- Encode the request body as JSON

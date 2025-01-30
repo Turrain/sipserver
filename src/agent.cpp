@@ -107,7 +107,7 @@ void BaseAgent::connect_services() {
         whisper_client_->set_transcription_callback([this](const std::string& text) {
             std::string text_res = this->process_message(text);
             if (!text_res.empty()) {
-                this->generate_audio(text);
+                this->generate_audio(text_res);
             }
         });
     } catch (const std::exception& e) {
@@ -167,8 +167,8 @@ std::shared_ptr<Agent> AgentManager::create_agent(const std::string& id) {
             }},
 
             {"services", {
-                {"whisper", {{"url", "ws://37.151.89.206:8765"}}},
-                {"auralis", {{"url", "ws://37.151.89.206:8766"}}}
+                {"whisper", {{"url", "ws://stt:8765"}}},
+                {"auralis", {{"url", "ws://tts:8766"}}}
             }}
         });
         config_.commit();

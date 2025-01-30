@@ -10,8 +10,9 @@ public:
     }
     void send_audio(const std::vector<int16_t> &audio_data)
     {
-        if (!connected)
-            return;
+        if (!connected){
+            LOG_ERROR << "WhisperClient is not connected";
+            return;}
 
         try {
             client.send(connection,
@@ -31,6 +32,7 @@ protected:
 
             // Handle transcription result
             if (json_msg.contains("text")) {
+                LOG_DEBUG << "Received transcription: " << json_msg["text"];
                 std::string transcription = json_msg["text"].get<std::string>();
                 if (transcription_callback) {
                     transcription_callback(transcription);

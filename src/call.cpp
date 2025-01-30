@@ -57,6 +57,7 @@ Call::Call(Account &acc, int call_id) :
     mediaPort.vad.setVoiceSegmentCallback(
         [this](const std::vector<pj::MediaFrame> &frames) {
             LOG_DEBUG << "Voice segment detected";
+          //  this->getAgent()->generate_response(VAD::mergeFrames(frames));
             this->getAgent()->process_audio(VAD::mergeFrames(frames));
         });
 

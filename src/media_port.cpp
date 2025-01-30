@@ -13,34 +13,39 @@ void MediaPort::onFrameRequested(pj::MediaFrame &frame)
 {
     frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
 
-    if (audioQueue.empty() && pcmBufferIndex >= pcmBuffer.size()) {
-        frame.buf.clear();
-        frame.size = 0;
-        return;
-    }
+    const size_t requiredSamples = frameSize / sizeof(int16_t);
+    std::vector<int16_t> tempBuffer(requiredSamples, 0); 
 
-    size_t samplesToCopy = std::min(frameSize / sizeof(int16_t),
-        pcmBuffer.size() - pcmBufferIndex);
+    size_t samplesCopied = 0;
 
-    std::vector<int16_t> tempBuffer(samplesToCopy);
+    while (samplesCopied < requiredSamples) {
+        if (pcmBufferIndex >= pcmBuffer.size()) {
+            if (audioQueue.empty()) {
+                break;
+            }
+            pcmBuffer = audioQueue.front();
+            audioQueue.pop();
+            pcmBufferIndex = 0;
+        }
 
-    if (pcmBufferIndex < pcmBuffer.size()) {
+        size_t remainingSamples = requiredSamples - samplesCopied;
+        size_t availableSamples = pcmBuffer.size() - pcmBufferIndex;
+        size_t samplesToCopy = std::min(remainingSamples, availableSamples);
+
+
         std::copy(pcmBuffer.begin() + pcmBufferIndex,
-            pcmBuffer.begin() + pcmBufferIndex + samplesToCopy,
-            tempBuffer.begin());
+                  pcmBuffer.begin() + pcmBufferIndex + samplesToCopy,
+                  tempBuffer.begin() + samplesCopied);
+
+
+        samplesCopied += samplesToCopy;
         pcmBufferIndex += samplesToCopy;
     }
 
-    if (pcmBufferIndex >= pcmBuffer.size() && !audioQueue.empty()) {
-        pcmBuffer = audioQueue.front();
-        audioQueue.pop();
-        pcmBufferIndex = 0;
-    }
-
     frame.buf.assign(
-        reinterpret_cast<const uint8_t *>(tempBuffer.data()),
-        reinterpret_cast<const uint8_t *>(tempBuffer.data() + tempBuffer.size()));
-    frame.size = static_cast<unsigned>(tempBuffer.size() * sizeof(int16_t));
+        reinterpret_cast<const uint8_t*>(tempBuffer.data()),
+        reinterpret_cast<const uint8_t*>(tempBuffer.data() + requiredSamples));
+    frame.size = static_cast<unsigned>(requiredSamples * sizeof(int16_t));
 }
 
 void MediaPort::onFrameReceived(pj::MediaFrame &frame)
@@ -50,7 +55,7 @@ void MediaPort::onFrameReceived(pj::MediaFrame &frame)
 
 void MediaPort::clearQueue()
 {
-    std::queue<std::vector<int16_t>>().swap(audioQueue);
-    pcmBuffer.clear();
-    pcmBufferIndex = 0;
+    audioQueue = std::queue<std::vector<int16_t>>(); // Empty the audio queue
+    pcmBuffer.clear();               // Clear current PCM buffer
+    pcmBufferIndex = 0;              // Reset buffer index
 }
