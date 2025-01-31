@@ -3,7 +3,8 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                  "~/vcpkg/installed/x64-linux/include/**"
             ],
             "defines": [],
             "compileCommands": "${workspaceFolder}/build/compile_commands.json"

@@ -6,7 +6,7 @@
 #include <thread>
 #include <websocketpp/client.hpp>
 #include <websocketpp/config/asio_no_tls_client.hpp>
-
+#include "utils/logger.h"
 class AbstractWebSocketClient {
 protected:
     using Client = websocketpp::client<websocketpp::config::asio_client>;

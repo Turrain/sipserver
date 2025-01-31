@@ -1,48 +1,105 @@
--- ollama.lua
-local ollama = {}
-local json = require("dkjson")
+local Provider = require("provider")
+local http = require "http.request"
+local cjson = require "cjson"
 
--- Get config from C++
-ollama.config = get_provider_config()
-
-function ollama.request_handler(config, input, options, history)
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-
-    -- Build the request body
-    local request_body = {
-        model = options[0] or config.model,
-        messages = {{role = "user", content = input}},
-        stream = false
-    }
-
-    -- Encode the request body as JSON
-    local body_str = json.encode(request_body)
-
-    -- Send the HTTP POST request
-    local response = http_post(config.api_url, config.api_path, headers, body_str)
-
-    -- Check if the HTTP request failed
-    if response == "HTTP request failed" then
-        return {content = "HTTP request failed", metadata = {}}
+local function map_history(history)
+    local messages = {}
+    for _, msg in ipairs(history or {}) do
+        table.insert(messages, {
+            role = msg.role,
+            content = msg.content,
+        })
     end
-
-    -- Parse the JSON response
-    local success, res = pcall(json.decode, response)
-    if not success then
-        return {content = "Error parsing response", metadata = {}}
-    end
-
-    -- Extract the content and metadata
-    return {
-        content = res.message and res.message.content or "No content",
-        metadata = {
-            model = request_body.model,
-            total_duration = res.total_duration
-        }
-    }
+    return messages
 end
 
--- Register the provider with the manager
-manager:register_provider("ollama", ollama.config, ollama.request_handler)
+local ollama_provider = Provider.create({
+    model = "llama3.2:1b", -- Default Ollama model
+    temperature = 0.7,
+    max_tokens = 1024,
+    top_p = 1.0,
+    stream = false,
+    stop = nil
+}, function(params)
+    -- Construct API request for Ollama
+    local messages = map_history(params.history)
+
+    table.insert(messages, {
+        role = "user",
+        content = params.input
+    })
+
+    local request_body = {
+        model = params.config.model,
+        messages = messages,
+        stream = false,
+        options = {
+            temperature = params.config.temperature,
+            top_p = params.config.top_p,
+            stop = params.config.stop,
+            num_predict = params.config.max_tokens,
+
+        }
+    }
+
+    local serialized_body = cjson.encode(request_body)
+
+    -- Make API call to local Ollama instance
+    local req = http.new_from_uri("http://localhost:11434/api/chat")
+    req.headers:upsert(":method", "POST")
+    req.headers:upsert("content-type", "application/json")
+    req:set_body(serialized_body)
+
+    local headers, stream = assert(req:go())
+    local status = headers:get(":status")
+    local status_code = tonumber(status)
+
+    if status_code ~= 200 then
+        local body = stream:get_body_as_string() or "No response body"
+        local error_message = "unknown error"
+
+        local decoded_ok, decoded_body = pcall(cjson.decode, body)
+
+        if decoded_ok then
+            error_message = decoded_body.error or error_message
+        else
+            error_message = "JSON parse error: " .. decoded_body
+        end
+
+        return false, nil, string.format("Ollama API error (status %d): %s", status_code, error_message)
+    end
+
+    -- Process successful response
+    local body, err = stream:get_body_as_string()
+    if err then
+        return false, nil, "Error reading response body: " .. err
+    end
+    print(body)
+    local response_data, parse_err = cjson.decode(body)
+    if not response_data then
+        return false, nil, "JSON parse error: " .. tostring(parse_err)
+    end
+
+    if not response_data.message then
+        return false, nil, "No message in API response"
+    end
+
+    return true, {
+        content = response_data.message.content,
+        metadata = {
+            model = response_data.model,
+            done = response_data.done,
+            timing = {
+                total_duration = response_data.total_duration,
+                load_duration = response_data.load_duration,
+                prompt_eval_count = response_data.prompt_eval_count,
+                eval_count = response_data.eval_count
+            }
+        }
+    }, nil
+end
+)
+
+function ollama(params)
+    return ollama_provider.request(params)
+end

@@ -7,7 +7,6 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "agent/agent.h"
 #include "core/configuration.h"
-#include "provider/lua_provider.h"
 #include "provider/provider_manager.h"
 #include "server/server.h"
 #include "utils/logger.h"
@@ -16,10 +15,20 @@
 static void runTestMode(core::Configuration config)
 {
     // Initialize components
-    auto providerManager = ProviderManager::getInstance();
+    ProviderManager::getInstance().load_providers_from_folder("./lua");
+     auto result =  ProviderManager::getInstance().process_request(
+        "ollama",
+        "Explain the difference between RAG and fine-tuning",
+        {
+            {"temperature", 0.5},
+            {"model", "llama3.2:1b"},
+        },
+        { {{"role", "system"}, {"content", "system_prompt"}} });
+
+    LOG_DEBUG << result.response;
+
     auto pdv = core::ScopedConfiguration(config, "/providers");
     LOG_CRITICAL << pdv.getData().dump(4);
-    providerManager->initialize(pdv);
     auto cfg = core::ScopedConfiguration(config, "/agents");
    // providerManager->processRequest("groq", "test");
     // Create agent manager with shared configuration pointer

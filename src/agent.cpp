@@ -57,30 +57,27 @@ void BaseAgent::process_audio(const std::vector<int16_t>& audio_data) {
 }
 
 std::string BaseAgent::generate_response(const std::string& text) {
-    auto provider_mgr = ProviderManager::getInstance();
+
     auto provider_opt = config_.get<std::string>("/provider");
   
-    
-    if (!provider_mgr->hasProvider(provider_opt)) {
-        LOG_ERROR << "Provider unavailable: " << provider_opt;
-        return "";
-    }
 
     auto provider_options = config_.get<nlohmann::json>("/provider_options");
     auto history = this->history_;
-    auto response = provider_mgr->processRequest(provider_opt, text, provider_options, history);
-    LOG_DEBUG << "Received response: " << response.content;
+    std::cout << provider_opt;
+    auto response = ProviderManager::getInstance().process_request(provider_opt, text, provider_options, history);
+    
+    LOG_DEBUG << "Received response: " << response.response;
 
-    if (!response.content.empty()) {
+    if (!response.response.empty()) {
         std::lock_guard<std::mutex> lock(history_mutex_);
-        history_.emplace_back("assistant", response.content);
+        history_.emplace_back("assistant", response.response);
         // std::string voice_style = style_opt.value_or("neutral");
         // float temperature = temp_opt.value_or(0.7);
         // auralis_client_->synthesize_text(response.content, voice_style, static_cast<float>(temperature));
     }
 
     maintain_history();
-    return response.content;
+    return response.response;
 }
 
 void BaseAgent::generate_audio(const std::string& text) {

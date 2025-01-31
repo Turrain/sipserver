@@ -1,61 +1,114 @@
--- groq.lua
-local groq = {}
-local json = require("dkjson")
+local Provider = require("provider")
+local http = require "http.request"
+local cjson = require "cjson"
 
--- Get config from C++
-groq.config = get_provider_config()
-
-function groq.request_handler(config, input, options, history)
-    print("Config: " .. (config.model))
-    local headers = {
-        ["Authorization"] = "Bearer " .. config.api_key,
-        ["Content-Type"] = "application/json"
-    }
-    for _, msg in ipairs(history) do
-        print(msg.role .. ": " .. msg.content)
+local function map_history(history)
+    local messages = {}
+    for _, msg in ipairs(history or {}) do
+        table.insert(messages, {
+            role = msg.role,
+            content = msg.content,
+        })
     end
-    -- Build the request body
-    local request_body = {
-        model = tostring(config.model),
-        messages = {{role = "user", content = input}},
-    --    temperature = options.temperature or 0.7
-    }
-
-    -- Encode the request body as JSON
-    local body_str = json.encode(request_body)
-
-    -- Send the HTTP POST request
-    local response = http_post(config.api_url, config.api_path, headers, body_str)
-    print("Raw response from Groq API:", response)
-
-    -- Check if the HTTP request failed
-    if response == "HTTP request failed" then
-        return {content = "HTTP request failed", metadata = {}}
-    end
-
-    -- Parse the JSON response
-    local success, res = pcall(json.decode, response)
-    if not success then
-        print("JSON parse error:", res)
-        return {content = "Error parsing response", metadata = {}}
-    end
-    print("Parsed JSON response:", json.encode(res))
-
-    -- Validate the response structure
-    if not res or not res.choices or not res.choices[1] or not res.choices[1].message then
-        print("Invalid response structure:", json.encode(res))
-        return {content = "Invalid response format", metadata = {}}
-    end
-
-    -- Extract the content and metadata
-    return {
-        content = res.choices[1].message.content or "No content",
-        metadata = {
-            model = request_body.model,
-            tokens_used = res.usage and res.usage.total_tokens or 0
-        }
-    }
+    return messages
 end
 
--- Register the provider with the manager
-manager:register_provider("groq", groq.config, groq.request_handler)
+local groq_provider = Provider.create({
+    model = "mixtral-8x7b-32768",
+    temperature = 0.7,
+    max_tokens = 1024,
+    top_p = 1.0,
+    stream = false,
+    stop = nil
+}, function(params)
+        -- Construct API request
+        local messages = map_history(params.history)
+
+        table.insert(messages, {
+            role = "user",
+            content = params.input
+        })
+        local request_body = {
+            model = params.config.model,
+            messages = messages,
+            temperature = params.config.temperature,
+            max_tokens = params.config.max_tokens,
+            top_p = params.config.top_p,
+            stream = params.config.stream,
+        }
+
+        if params.config.stop then
+            request_body.stop = params.config.stop
+        end
+  
+        local serialized_body = cjson.encode(request_body)
+        print(serialized_body)
+        -- Make API call (implementation would use C++ HTTP client)
+        local req = http.new_from_uri("https://api.groq.com/openai/v1/chat/completions")
+        local headers = {
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. params.config.api_key,
+            ["Content-Length"] = #serialized_body, -- Important for POST requests
+        }
+
+        req.headers:upsert(":method", "POST")
+        req.headers:upsert("content-type", "application/json")
+        req.headers:upsert("authorization", "Bearer " .. params.config.api_key)
+        req:set_body(serialized_body)
+
+        local headers, stream = assert(req:go())
+        local status = headers:get(":status")
+        if not status then
+            return false, nil, "Missing HTTP status in response"
+        end
+        local status_code = tonumber(status)
+        if not status_code then
+            return false, nil, "Invalid HTTP status code: " .. tostring(status)
+        end
+
+        -- Check HTTP status code
+        if status_code ~= 200 then
+            local body = stream:get_body_as_string() or "No response body"
+            local error_message = "unknown error"
+            
+            -- Proper pcall usage with two return values
+            local decoded_ok, decoded_body = pcall(cjson.decode, body)
+            
+            if decoded_ok then  -- Only if decoding succeeded
+                if decoded_body and decoded_body.error and decoded_body.error.message then
+                    error_message = decoded_body.error.message
+                end
+            else  -- Handle JSON parse errors
+                error_message = "Failed to parse error response: " .. decoded_body
+            end
+            
+            return false, nil, string.format("Groq API error (status %d): %s", status_code, error_message)
+        end
+
+        -- Process successful response
+        local body, err = stream:get_body_as_string()
+        if err then
+            return false, nil, "Error reading response body: " .. err
+        end
+
+        local response_data, parse_err = cjson.decode(body)
+        if not response_data then
+            return false, nil, "JSON parse error: " .. tostring(parse_err)
+        end
+
+        if not response_data.choices or #response_data.choices == 0 then
+            return false, nil, "No choices in API response"
+        end
+       
+        return true, {
+            content = response_data.choices[1].message.content,
+            metadata = {
+                usage = response_data.usage,
+                model = response_data.model,
+            }
+        }, nil
+    end
+)
+function groq(params)
+    return groq_provider.request(params)
+end

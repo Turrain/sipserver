@@ -10,11 +10,11 @@ using json = nlohmann::json;
 Server::Server(core::Configuration &config) :
     m_config(config)
 {
-    auto providerManager = ProviderManager::getInstance();
+    ProviderManager::getInstance().load_providers_from_folder("./lua");
+
     Logger::setMinLevel(Level::Debug);
 
     auto pdv = core::ScopedConfiguration(config, "/providers");
-    providerManager->initialize(pdv);
     auto ags = core::ScopedConfiguration(config, "/agents");
     m_agentManager = std::make_shared<AgentManager>(ags);
     m_manager = std::make_shared<Manager>(m_agentManager);

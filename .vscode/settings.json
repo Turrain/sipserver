@@ -80,6 +80,7 @@
         "valarray": "cpp",
         "variant": "cpp",
         "complex": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "filesystem": "cpp"
     }
 }
