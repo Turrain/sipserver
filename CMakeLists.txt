@@ -13,6 +13,7 @@ endif()
 include(${CMAKE_TOOLCHAIN_FILE})
 find_package(websocketpp CONFIG REQUIRED)
 find_package(sol2 CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
 
 set(COMMON_COMPILE_DEFINITIONS
         WEBRTC_LINUX
@@ -27,13 +28,13 @@ set(COMMON_COMPILE_OPTIONS
 )
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
-file(GLOB SOURCES "src/*.cpp") 
+file(GLOB SOURCES "src/main.cpp") 
 add_executable(server main.cpp ${SOURCES})
 #add_library(server STATIC ${SOURCES})
 file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/lua DESTINATION ${CMAKE_BINARY_DIR})
 
-target_link_libraries(server PRIVATE pjproject my_webrtc lua5.4 sol2 websocketpp::websocketpp dl )
+target_link_libraries(server PRIVATE pjproject my_webrtc lua5.4 sol2 websocketpp::websocketpp dl ZLIB::ZLIB )
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
 # Add debug symbols only in Debug build, and set release options

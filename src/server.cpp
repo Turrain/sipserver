@@ -7,18 +7,10 @@
 
 using json = nlohmann::json;
 
-Server::Server(core::Configuration &config) :
-    m_config(config)
+Server::Server()
 {
     ProviderManager::getInstance().load_providers_from_folder("./lua");
 
-    Logger::setMinLevel(Level::Debug);
-
-    auto pdv = core::ScopedConfiguration(config, "/providers");
-    auto ags = core::ScopedConfiguration(config, "/agents");
-    m_agentManager = std::make_shared<AgentManager>(ags);
-    m_manager = std::make_shared<Manager>(m_agentManager);
-    auto agent = m_agentManager->create_agent("test-agent");
     setupRoutes();
 }
 
@@ -29,12 +21,9 @@ Server::~Server()
 
 void Server::run()
 {
-
-    const auto host = m_config.get<std::string>("/server/host");
-    const auto port = m_config.get<int>("/server/port");
-
+    const auto host = config.get<std::string>("SERVER_HOST");
+    const auto port = config.get<int>("SERVER_PORT");
     LOG_INFO << "Starting server on " << host << ":" << port;
-
     if (!m_server.listen(host, port)) {
         LOG_ERROR << "Server failed to start on " << host << ":" << port;
     }
@@ -60,7 +49,6 @@ void Server::setupRoutes()
                 return;
             }
 
-       
             std::string agentId = data.value("agentId", "");
 
             auto result = m_manager->addAccount(
@@ -70,7 +58,7 @@ void Server::setupRoutes()
                 data["password"],
                 data["registrarUri"],
                 agentId);
-           
+
             if (result.success) {
                 res.status = 201;
                 res.set_content(json {
@@ -219,11 +207,11 @@ void Server::setupRoutes()
                 return;
             }
 
-            //id
+            // id
             const auto &id = body["id"].get<std::string>();
-            //provider
-            const auto &provider = body.value("provider", "ollama");    
-            //provider_options
+            // provider
+            const auto &provider = body.value("provider", "ollama");
+            // provider_options
             const auto &config_patch = body.value("provider_options", json::object());
             // Check if agent already exists
             if (m_agentManager->get_agent(id)) {
@@ -232,13 +220,12 @@ void Server::setupRoutes()
                     "application/json");
                 return;
             }
-   
+
             auto agent = m_agentManager->create_agent(id);
 
-    
             agent->configure("/provider", provider);
             agent->configure("/provider_options", config_patch);
-            
+
             if (agent) {
                 res.status = 201;
                 res.set_content(agent->config().getData().dump(),
@@ -309,7 +296,7 @@ void Server::setupRoutes()
             }
 
             // Handle configuration updates
-            for (const auto& [path, value] : patch.items()) {
+            for (const auto &[path, value]: patch.items()) {
                 agent->configure("/" + path, value);
             }
             LOG_DEBUG << agent->config().getData().dump(4);
@@ -317,8 +304,8 @@ void Server::setupRoutes()
             res.status = 200;
             res.set_content(json {
                                 { "id", id },
-                                { "status", "updated" }
-                            }.dump(),
+                                { "status", "updated" } }
+                                .dump(),
                 "application/json");
 
         } catch (const json::exception &e) {

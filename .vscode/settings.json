@@ -81,6 +81,7 @@
         "variant": "cpp",
         "complex": "cpp",
         "typeindex": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "*.ipp": "cpp"
     }
 }

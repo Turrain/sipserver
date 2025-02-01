@@ -1,609 +1,442 @@
 #pragma once
+#if defined(__cplusplus) && __cplusplus >= 201703L && defined(__has_include)
+#if __has_include(<filesystem>)
+    #define HAS_FILESYSTEM 1
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#endif
+#endif
+
+#ifndef HAS_FILESYSTEM
+#include <sys/stat.h>
+#endif
 
 #include <algorithm>
-#include <atomic>
-#include <deps/json.hpp>
+#include <cctype>
 #include <fstream>
-#include <functional>
 #include <iostream>
-#include <memory>
-#include <optional>
-#include <sstream>
-#include <stdexcept>
-#include <unordered_set>
+#include <map>
+#include <string>
 #include <vector>
-using json = nlohmann::json;
+#include <optional>
 
-namespace std {
-template<>
-struct hash<json::json_pointer> {
-    size_t operator()(const json::json_pointer &p) const
-    {
-        return hash<string>()(p.to_string());
+namespace utils {
+    [[nodiscard]] std::string trim(std::string_view s) {
+        auto is_space = [](unsigned char c) { return std::isspace(c); };
+        auto start = std::find_if_not(s.begin(), s.end(), is_space);
+        auto end = std::find_if_not(s.rbegin(), s.rend(), is_space).base();
+        return std::string(start, end);
     }
+
+    [[nodiscard]] constexpr bool starts_with(std::string_view str, std::string_view prefix) noexcept {
+        return str.substr(0, prefix.size()) == prefix;
+    }
+    [[nodiscard]] bool file_exists(const std::string& filepath) {
+        #if defined(HAS_FILESYSTEM)
+                std::error_code ec;
+                return fs::exists(filepath, ec);
+        #else
+                struct stat buffer;
+                return (stat(filepath.c_str(), &buffer) == 0);
+        #endif
+    }
+    // Case-insensitive string comparison
+    struct CaseInsensitiveLess {
+        bool operator()(std::string_view lhs, std::string_view rhs) const {
+            return std::lexicographical_compare(
+                lhs.begin(), lhs.end(),
+                rhs.begin(), rhs.end(),
+                [](char a, char b) {
+                    return std::tolower(static_cast<unsigned char>(a)) <
+                           std::tolower(static_cast<unsigned char>(b));
+                }
+            );
+        }
+    };
+
+    // Convert string to uppercase
+    [[nodiscard]] std::string to_upper(std::string_view str) {
+        std::string result(str);
+        std::transform(result.begin(), result.end(), result.begin(),
+                      [](unsigned char c) { return std::toupper(c); });
+        return result;
+    }
+}
+
+class ConfigurationError : public std::runtime_error {
+    using std::runtime_error::runtime_error;
 };
-} // namespace std
-
-namespace core {
-
-// Add hash specialization for json_pointer
-
-class Configuration {
+class EnvParser {
 public:
-    using Observer = std::function<void(const json::json_pointer &, const json &, const json &)>;
-
-    Configuration() = default;
-
-    void beginTransaction()
-    {
-        if (transaction_data_) {
-            throw std::runtime_error("Transaction already active");
-        }
-        transaction_data_ = data_;
-        modified_paths_.clear();
-    }
-    void loadFromFile(const std::string &filename, bool merge = false)
-    {
-        try {
-            std::ifstream file(filename);
-            if (!file.is_open()) {
-                throw std::runtime_error("Could not open file: " + filename);
-            }
-
-            json loaded = json::parse(file);
-
-            if (transaction_data_) {
-                handleLoad(*transaction_data_, loaded, merge);
-                modified_paths_.clear(); // Consider all paths modified
-            } else {
-                handleLoad(data_, loaded, merge);
-            }
-        } catch (const std::exception &e) {
-            throw std::runtime_error("Failed to load from file: " + std::string(e.what()));
-        }
-    }
-    void saveToFile(const std::string &filename) const
-    {
-        try {
-            std::ofstream file(filename);
-            if (!file.is_open()) {
-                throw std::runtime_error("Could not create file: " + filename);
-            }
-
-            const json &target = transaction_data_ ? *transaction_data_ : data_;
-            file << target.dump(4); // Pretty print with 4-space indentation
-        } catch (const std::exception &e) {
-            throw std::runtime_error("Failed to save to file: " + std::string(e.what()));
-        }
-    }
-
-    const json &getData() const noexcept
-    {
-        return transaction_data_ ? *transaction_data_ : data_;
-    }
-
-    // Get scoped data (const version)
-    json getData(const json::json_pointer &scope) const
-    {
-        return get(scope);
-    }
-
-    // Get scoped data (string version)
-    json getData(const std::string &scope) const
-    {
-        return getData(json::json_pointer(scope));
-    }
-
-    void handleLoad(json &target, const json &loaded, bool merge)
-    {
-        if (merge) {
-            target.merge_patch(loaded);
-        } else {
-            target = loaded;
-        }
-    }
-    void commit()
-    {
-        if (!transaction_data_) {
-            throw std::runtime_error("No active transaction to commit");
+    [[nodiscard]] std::error_code load(const std::filesystem::path& filepath) noexcept {
+        std::error_code ec;
+        if (!std::filesystem::exists(filepath, ec)) {
+            return ec;
         }
 
-        for (const auto &path: modified_paths_) {
-            json old_value;
+        std::ifstream file(filepath);
+        if (!file) {
+            return std::make_error_code(std::errc::io_error);
+        }
+
+        variables_.clear();
+        std::string line;
+        size_t line_number = 0;
+
+        while (std::getline(file, line)) {
+            ++line_number;
             try {
-                old_value = data_.at(path);
-            } catch (...) {
-                old_value = nullptr;
+                process_line(line);
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Error processing line " << line_number
+                         << ": " << e.what() << '\n';
             }
-
-            json new_value;
-            try {
-                new_value = transaction_data_->at(path);
-            } catch (...) {
-                new_value = nullptr;
-            }
-
-            notifyObservers(path, old_value, new_value);
         }
 
-        data_ = std::move(*transaction_data_);
-        transaction_data_.reset();
-        modified_paths_.clear();
+        return {};
     }
 
-    void rollback()
-    {
-        if (!transaction_data_) {
-            throw std::runtime_error("No active transaction to rollback");
+    [[nodiscard]] std::optional<std::string_view> get(std::string_view key) const noexcept {
+        // Convert key to uppercase for case-insensitive lookup
+        auto upper_key = utils::to_upper(key);
+        if (auto it = variables_.find(upper_key); it != variables_.end()) {
+            return std::string_view(it->second);
         }
-        transaction_data_.reset();
-        modified_paths_.clear();
-    }
-    template<typename T>
-    T get(const json::json_pointer &path, const T &default_value = T {}) const
-    {
-        const json &target = transaction_data_ ? *transaction_data_ : data_;
-        return target.value(path, default_value);
+        return std::nullopt;
     }
 
-    // Overload for string paths
-    template<typename T>
-    T get(const std::string &path, const T &default_value = T {}) const
-    {
-        return get<T>(json::json_pointer(path), default_value);
+    [[nodiscard]] std::string_view get(std::string_view key,
+                                      std::string_view default_value) const noexcept {
+        return get(key).value_or(default_value);
     }
 
-    json get(const std::string &path)
-    {
-        return get(json::json_pointer(path));
-    }
-    json get(const json::json_pointer &path) const
-    {
-        const json &target = transaction_data_ ? *transaction_data_ : data_;
-
-        // Check if path exists and is not null
-        if (target.contains(path) && !target[path].is_null()) {
-            return target[path];
-        }
-        return json(); // Return null JSON value as default
-    }
-
-    void set(const json::json_pointer &path, const json &value)
-    {
-        if (transaction_data_) {
-            ensurePathExists(*transaction_data_, path);
-            (*transaction_data_)[path] = value;
-            modified_paths_.insert(path);
-        } else {
-            ensurePathExists(data_, path);
-            json old_value = data_.value(path, json());
-            data_[path] = value;
-            notifyObservers(path, old_value, value);
-        }
-    }
-    void set(const std::string &path, const json &value)
-    {
-        set(json::json_pointer(path), value);
-    }
-
-     void setJson(const json::json_pointer& path, const json& value, bool merge = false) 
-    {
-        if (merge) {
-            // Create a copy of existing data and merge
-            json current = get(path);
-            current.merge_patch(value);  // Merge happens in-place
-            set(path, current);
-        } else {
-            set(path, value);
-        }
-    }
-
-    void setJson(const std::string &path, const json &value, bool merge = false)
-    {
-        setJson(json::json_pointer(path), value, merge);
-    }
-
-
-    void registerObserver(const json::json_pointer &path, Observer observer)
-    {
-        observers_.emplace_back(path, std::move(observer));
-    }
-
-    // Overload for string paths
-    void registerObserver(const std::string &path, Observer observer)
-    {
-        registerObserver(json::json_pointer(path), std::move(observer));
-    }
+    [[nodiscard]] const auto& variables() const noexcept { return variables_; }
 
 private:
-    void ensurePathExists(json &j, const json::json_pointer &path)
-    {
-        json *current = &j;
-        std::string ptr = path.to_string();
-        std::istringstream iss(ptr);
-        std::string token;
+    void process_line(std::string_view line) {
+        std::string trimmed = utils::trim(line);
+        if (trimmed.empty() || trimmed[0] == '#') return;
 
-        // Skip empty first token if path starts with '/'
-        if (!ptr.empty() && ptr[0] == '/')
-            iss.get();
-
-        while (std::getline(iss, token, '/')) {
-            if (!current->contains(token)) {
-                (*current)[token] = json::object();
-            }
-            current = &(*current)[token];
+        size_t eq_pos = trimmed.find('=');
+        if (eq_pos == std::string::npos) {
+            throw ConfigurationError("Missing '=' in configuration line");
         }
-    }
 
-    void notifyObservers(const json::json_pointer &path,
-        const json &old_value, const json &new_value)
-    {
-        for (const auto &[observer_path, observer]: observers_) {
-            if (isPathObserved(path, observer_path)) {
-                observer(path, old_value, new_value);
-            }
+        std::string key = utils::trim(trimmed.substr(0, eq_pos));
+        std::string value = utils::trim(trimmed.substr(eq_pos + 1));
+
+        if (key.empty()) {
+            throw ConfigurationError("Empty key in configuration");
         }
+
+        // Store keys in uppercase for case-insensitive lookup
+        variables_.emplace(utils::to_upper(key), std::move(value));
     }
 
-    static bool isPathObserved(const json::json_pointer &changed,
-        const json::json_pointer &observer)
-    {
-        const std::string cs = changed.to_string();
-        const std::string os = observer.to_string();
-
-        if (os == "/")
-            return true;
-        if (cs == os)
-            return true;
-
-        return (cs.length() > os.length()) && (cs.compare(0, os.length(), os) == 0) && (cs[os.length()] == '/');
-    }
-
-    json data_;
-    std::optional<json> transaction_data_;
-    std::unordered_set<json::json_pointer> modified_paths_;
-    std::vector<std::pair<json::json_pointer, Observer>> observers_;
+    std::map<std::string, std::string> variables_;
 };
 
-class ScopedConfiguration {
-public:
-    ScopedConfiguration(Configuration &core, const json::json_pointer &scope) :
-        core_(core), scope_(scope)
-    {
-        if (!scope.empty()) {
-            core_.set(scope, core_.get(scope));
-        }
-    }
-
-    ScopedConfiguration(Configuration &core, const std::string &scope) :
-        ScopedConfiguration(core, json::json_pointer(scope)) { }
-
-    ScopedConfiguration(const ScopedConfiguration &other, const json::json_pointer &scope) :
-        ScopedConfiguration(other.core_, scope / other.scope_) { }
-
-    ScopedConfiguration(const ScopedConfiguration &other, const std::string &scope) :
-        ScopedConfiguration(other.core_, json::json_pointer(scope)) { }
-
-    void beginTransaction() { core_.beginTransaction(); }
-    void commit() { core_.commit(); }
-    void rollback() { core_.rollback(); }
-
- 
-
-    template<typename T>
-    T get(const json::json_pointer &path, const T &default_value = T {}) const
-    {
-        return core_.get<T>(scope_ / path, default_value);
-    }
-
-    template<typename T>
-    T get(const std::string &path, const T &default_value = T {}) const
-    {
-        return get<T>(json::json_pointer(path), default_value);
-    }
-
-    void set(const json::json_pointer &path, const json &value)
-    {
-        core_.set(scope_ / path, value);
-    }
-
-    void set(const std::string &path, const json &value)
-    {
-        set(json::json_pointer(path), value);
-    }
-
-    void setJson(const json::json_pointer& path, const json& value, bool merge = false) 
-    {
-        core_.setJson(scope_ / path, value, merge);
-    }
-
-    void setJson(const std::string& path, const json& value, bool merge = false) 
-    {
-        setJson(json::json_pointer(path), value, merge);
-    }
-    json getData() const
-    {
-        return core_.get(scope_);
-    }
-
-    // Get relative data within scope
-    json getRelativeData(const json::json_pointer &path) const
-    {
-        return core_.get(scope_ / path);
-    }
-
-    json getRelativeData(const std::string &path) const
-    {
-        return getRelativeData(json::json_pointer(path));
-    }
-
-    void registerObserver(const json::json_pointer &path,
-        Configuration::Observer observer)
-    {
-        core_.registerObserver(scope_ / path, std::move(observer));
-    }
-
-    void registerObserver(const std::string &path,
-        Configuration::Observer observer)
-    {
-        registerObserver(json::json_pointer(path), std::move(observer));
-    }
-
-private:
-    Configuration &core_;
-    json::json_pointer scope_;
-};
-
-struct CLIArgument {
-    enum class Type { Boolean,
-        String,
-        Number,
-        Positional };
-    std::string long_name;
-    std::string short_name;
-    Type type;
-    std::string description;
-    bool required = false;
-    nlohmann::json default_value = nullptr;
-    size_t position = 0; // For positional arguments
-
-    CLIArgument(std::string ln, std::string sn, Type t, std::string desc,
-        bool req = false, nlohmann::json def = nullptr, size_t pos = 0) :
-        long_name(std::move(ln)),
-        short_name(std::move(sn)), type(t),
-        description(std::move(desc)), required(req), default_value(std::move(def)),
-        position(pos) { }
-};
 
 class CLIParser {
 public:
-    CLIParser(std::vector<CLIArgument> args, std::string app_description = "") :
-        arguments_(std::move(args)), description_(std::move(app_description)) { }
+    enum class Type {
+        Boolean,
+        String,
+        Integer,
+        Float
+    };
 
-    nlohmann::json parse(int argc, char **argv)
-    {
-        nlohmann::json result;
-        std::vector<std::string> positional_args;
-        std::string app_name = argv[0];
+    struct Option {
+        std::string long_name;
+        std::string short_name;
+        Type type;
+        std::string description;
+        std::string default_value;
+        bool required = false;
+    };
 
-        // Handle help option first
-        if (argc > 1 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h")) {
-            print_help(app_name);
-            exit(0);
-        }
+    struct ParseResult {
+        bool success;
+        std::string error_message;
+    };
 
-        // Parse arguments
-        for (int i = 1; i < argc; ++i) {
-            std::string arg = argv[i];
 
-            if (arg.rfind("--", 0) == 0) {
-                process_long_option(arg, result, i, argc, argv);
-            } else if (arg.rfind("-", 0) == 0) {
-                process_short_option(arg, result, i, argc, argv);
-            } else {
-                positional_args.push_back(arg);
+    explicit CLIParser(std::vector<Option> options)
+        : options_(std::move(options)) {
+        for (const auto& opt : options_) {
+            if (!opt.long_name.empty()) {
+                option_map_[opt.long_name] = &opt;
+            }
+            if (!opt.short_name.empty()) {
+                option_map_[opt.short_name] = &opt;
             }
         }
-
-        // Process positional arguments
-        handle_positionals(positional_args, result);
-
-        // Validate required arguments and set defaults
-        validate_and_set_defaults(result);
-
-        return result;
     }
 
-private:
-    std::vector<CLIArgument> arguments_;
-    std::string description_;
-
-    void print_help(const std::string &app_name)
-    {
-        std::cout << "Usage: " << app_name << " [OPTIONS]";
-
-        // Collect positional arguments
-        std::vector<CLIArgument> positionals;
-        for (const auto &arg: arguments_) {
-            if (arg.type == CLIArgument::Type::Positional) {
-                positionals.push_back(arg);
+    [[nodiscard]] ParseResult parse(int argc, const char* const argv[]) {
+        try {
+            for (int i = 1; i < argc;) {
+                std::string_view arg = argv[i];
+                if (utils::starts_with(arg, "--")) {
+                    i = handle_long_option(argc, argv, i);
+                } else if (utils::starts_with(arg, "-")) {
+                    i = handle_short_option(argc, argv, i);
+                } else {
+                    ++i;  // Skip positional arguments
+                }
             }
+
+            // Verify required options
+            for (const auto& opt : options_) {
+                if (opt.required && values_.find(opt.long_name) == values_.end()) {
+                    return {false, "Missing required option: --" + opt.long_name};
+                }
+            }
+
+            return {true, ""};
+        } catch (const std::exception& e) {
+            return {false, e.what()};
         }
-        std::sort(positionals.begin(), positionals.end(),
-            [](const CLIArgument &a, const CLIArgument &b) { return a.position < b.position; });
+    }
 
-        for (const auto &pos: positionals) {
-            std::cout << " <" << pos.long_name << ">";
+    [[nodiscard]] std::optional<std::string_view> get(std::string_view key) const noexcept {
+        if (auto it = values_.find(std::string(key)); it != values_.end()) {
+            return std::string_view(it->second);
         }
-        std::cout << "\n\n"
-                  << description_ << "\n\nOptions:\n";
+        if (auto opt_it = option_map_.find(std::string(key)); opt_it != option_map_.end()) {
+            return std::string_view(opt_it->second->default_value);
+        }
+        return std::nullopt;
+    }
 
-        // Print options
-        for (const auto &arg: arguments_) {
-            if (arg.type == CLIArgument::Type::Positional)
-                continue;
+    [[nodiscard]] std::string_view get(std::string_view key,
+                                      std::string_view default_value) const noexcept {
+        return get(key).value_or(default_value);
+    }
 
-            std::string option_str = "  ";
-            if (!arg.short_name.empty()) {
-                option_str += "-" + arg.short_name + ", ";
+    [[nodiscard]] bool get_bool(std::string_view key) const noexcept {
+        auto value = get(key);
+        return value && (*value == "true" || *value == "1");
+    }
+
+    void print_help() const {
+        std::cout << "Options:\n";
+        for (const auto& opt : options_) {
+            std::cout << "  ";
+            if (!opt.short_name.empty()) {
+                std::cout << "-" << opt.short_name << ", ";
             }
-            option_str += "--" + arg.long_name;
+            std::cout << "--" << opt.long_name;
 
-            switch (arg.type) {
-                case CLIArgument::Type::Boolean:
-                    option_str += " (flag)";
+            switch (opt.type) {
+                case Type::String:
+                    std::cout << " <string>";
                     break;
-                case CLIArgument::Type::Number:
-                    option_str += "=<num>";
+                case Type::Integer:
+                    std::cout << " <int>";
                     break;
-                case CLIArgument::Type::String:
-                    option_str += "=<str>";
+                case Type::Float:
+                    std::cout << " <float>";
                     break;
-                default:
+                case Type::Boolean:
                     break;
             }
 
-            printf("  %-30s %s", option_str.c_str(), arg.description.c_str());
-
-            if (arg.required)
-                std::cout << " [required]";
-            if (!arg.default_value.is_null())
-                std::cout << " (default: " << arg.default_value << ")";
-
+            std::cout << "\t" << opt.description;
+            if (!opt.default_value.empty()) {
+                std::cout << " (default: " << opt.default_value << ")";
+            }
             std::cout << "\n";
         }
     }
 
-    void process_long_option(const std::string &arg, nlohmann::json &result, int &idx, int argc, char **argv)
-    {
-        std::string content = arg.substr(2);
-        size_t eq_pos = content.find('=');
-        std::string key = (eq_pos != std::string::npos) ? content.substr(0, eq_pos) : content;
-        std::string value = (eq_pos != std::string::npos) ? content.substr(eq_pos + 1) : "";
+private:
+    int handle_long_option(int argc, const char* const argv[], int i) {
+        std::string_view arg = argv[i];
+        std::string_view key_part = arg.substr(2);
+        size_t eq_pos = key_part.find('=');
 
-        auto it = find_argument_by_long(key);
-        if (it == arguments_.end()) {
-            throw std::runtime_error("Unknown option: --" + key);
+        std::string key;
+        std::string value;
+
+        if (eq_pos != std::string::npos) {
+            key = std::string(key_part.substr(0, eq_pos));
+            value = std::string(key_part.substr(eq_pos + 1));
+            validate_and_store(key, value);
+            return i + 1;
         }
 
-        process_argument(*it, value, result, idx, argc, argv);
-    }
-
-    void process_short_option(const std::string &arg, nlohmann::json &result, int &idx, int argc, char **argv)
-    {
-        std::string content = arg.substr(1);
-        size_t eq_pos = content.find('=');
-        std::string key = (eq_pos != std::string::npos) ? content.substr(0, eq_pos) : content;
-        std::string value = (eq_pos != std::string::npos) ? content.substr(eq_pos + 1) : "";
-
-        auto it = find_argument_by_short(key);
-        if (it == arguments_.end()) {
-            throw std::runtime_error("Unknown option: -" + key);
+        key = std::string(key_part);
+        auto opt = find_option(key);
+        if (!opt) {
+            throw ConfigurationError("Unknown option: --" + key);
         }
 
-        process_argument(*it, value, result, idx, argc, argv);
-    }
-
-    void process_argument(const CLIArgument &arg, std::string value, nlohmann::json &result,
-        int &idx, int argc, char **argv)
-    {
-        if (arg.type == CLIArgument::Type::Boolean) {
-            if (value.empty()) {
-                result[arg.long_name] = true;
-            } else {
-                if (value == "true")
-                    result[arg.long_name] = true;
-                else if (value == "false")
-                    result[arg.long_name] = false;
-                else
-                    throw std::runtime_error("Invalid boolean value for --" + arg.long_name);
-            }
+        if (opt->type == Type::Boolean) {
+            value = "true";
+        } else if (i + 1 < argc && argv[i + 1][0] != '-') {
+            value = argv[i + 1];
+            validate_and_store(key, value);
+            return i + 2;
         } else {
-            if (value.empty()) {
-                if (idx + 1 >= argc) {
-                    throw std::runtime_error("Missing value for option: --" + arg.long_name);
-                }
-                value = argv[++idx];
-            }
-
-            try {
-                switch (arg.type) {
-                    case CLIArgument::Type::Number:
-                        result[arg.long_name] = std::stod(value);
-                        break;
-                    case CLIArgument::Type::String:
-                        result[arg.long_name] = value;
-                        break;
-                    default:
-                        throw std::runtime_error("Unexpected option type");
-                }
-            } catch (...) {
-                throw std::runtime_error("Invalid value for --" + arg.long_name + ": " + value);
-            }
+            throw ConfigurationError("Missing value for option: --" + key);
         }
+
+        validate_and_store(key, value);
+        return i + 1;
     }
 
-    void handle_positionals(std::vector<std::string> &positionals, nlohmann::json &result)
-    {
-        std::vector<CLIArgument> pos_args;
-        for (const auto &arg: arguments_) {
-            if (arg.type == CLIArgument::Type::Positional) {
-                pos_args.push_back(arg);
-            }
-        }
-        std::sort(pos_args.begin(), pos_args.end(),
-            [](const CLIArgument &a, const CLIArgument &b) { return a.position < b.position; });
+    int handle_short_option(int argc, const char* const argv[], int i) {
+        std::string_view arg = argv[i];
+        std::string_view key_part = arg.substr(1);
+        if (key_part.empty()) return i + 1;
 
-        if (positionals.size() < pos_args.size()) {
-            throw std::runtime_error("Insufficient positional arguments");
+        std::string key(key_part.substr(0, 1));
+        auto opt = find_option(key);
+        if (!opt) {
+            throw ConfigurationError("Unknown option: -" + key);
         }
 
-        for (size_t i = 0; i < pos_args.size(); ++i) {
-            const auto &arg = pos_args[i];
-            try {
-                if (arg.type == CLIArgument::Type::Number) {
-                    result[arg.long_name] = std::stod(positionals[i]);
-                } else {
-                    result[arg.long_name] = positionals[i];
-                }
-            } catch (...) {
-                throw std::runtime_error("Invalid value for positional argument: " + arg.long_name);
-            }
+        if (opt->type == Type::Boolean) {
+            validate_and_store(opt->long_name, "true");
+            return i + 1;
         }
 
-        // Store extra positionals
-        if (positionals.size() > pos_args.size()) {
-            nlohmann::json extras = nlohmann::json::array();
-            for (size_t i = pos_args.size(); i < positionals.size(); ++i) {
-                extras.push_back(positionals[i]);
-            }
-            result["_extra_args"] = extras;
+        std::string value;
+        if (key_part.length() > 1) {
+            value = std::string(key_part.substr(1));
+        } else if (i + 1 < argc && argv[i + 1][0] != '-') {
+            value = argv[i + 1];
+            validate_and_store(opt->long_name, value);
+            return i + 2;
+        } else {
+            throw ConfigurationError("Missing value for option: -" + key);
         }
+
+        validate_and_store(opt->long_name, value);
+        return i + 1;
     }
 
-    void validate_and_set_defaults(nlohmann::json &result)
-    {
-        for (const auto &arg: arguments_) {
-            if (arg.required && !result.contains(arg.long_name)) {
-                throw std::runtime_error("Missing required argument: --" + arg.long_name);
-            }
-            if (!arg.default_value.is_null() && !result.contains(arg.long_name)) {
-                result[arg.long_name] = arg.default_value;
-            }
+    [[nodiscard]] const Option* find_option(const std::string& key) const {
+        auto it = option_map_.find(key);
+        return it != option_map_.end() ? it->second : nullptr;
+    }
+
+    void validate_and_store(const std::string& key, const std::string& value) {
+        auto opt = find_option(key);
+        if (!opt) {
+            throw ConfigurationError("Unknown option: " + key);
         }
+        values_[opt->long_name] = value;
     }
 
-    std::vector<CLIArgument>::const_iterator find_argument_by_long(const std::string &name) const
-    {
-        return std::find_if(arguments_.begin(), arguments_.end(),
-            [&](const CLIArgument &a) { return a.long_name == name && a.type != CLIArgument::Type::Positional; });
-    }
-
-    std::vector<CLIArgument>::const_iterator find_argument_by_short(const std::string &name) const
-    {
-        return std::find_if(arguments_.begin(), arguments_.end(),
-            [&](const CLIArgument &a) { return a.short_name == name && a.type != CLIArgument::Type::Positional; });
-    }
+    std::vector<Option> options_;
+    std::map<std::string, const Option*> option_map_;
+    std::map<std::string, std::string> values_;
 };
 
-} // namespace core
+class AppConfig {
+public:
+    AppConfig(const AppConfig&) = delete;
+    AppConfig& operator=(const AppConfig&) = delete;
+
+    static AppConfig& getInstance() {
+        static AppConfig instance; 
+        return instance;
+    }
+
+    void initialize(int argc, char* argv[]) {
+        cli_parse_result_ = cli_parser_->parse(argc, argv);
+        if (!cli_parse_result_.success) {
+            throw ConfigurationError(cli_parse_result_.error_message);
+        }
+
+        // Load environment file if specified
+        auto config_file = cli_parser_->get("config");
+        if (config_file) {
+            auto ec = env_parser_.load(*config_file);
+            if (ec) {
+                throw ConfigurationError("Failed to load config file: " + ec.message());
+            }
+        } else {
+            auto ec = env_parser_.load(".env");
+            if (ec && ec != std::errc::no_such_file_or_directory) {
+                std::cerr << "Warning: Could not load .env file: " << ec.message() << '\n';
+            }
+        }
+    }
+
+      template<typename T>
+    T get(const std::string& key) const {
+        static_assert(std::is_same_v<T, std::string> || 
+                     std::is_same_v<T, bool> ||
+                     std::is_same_v<T, int> ||
+                     std::is_same_v<T, float>,
+                     "Unsupported type");
+
+        if (auto cli_val = cli_parser_->get(key)) { 
+            return convert<T>(cli_val->data());
+        }
+
+        if (auto env_val = env_parser_.get(key)) {
+            return convert<T>(env_val->data());
+        }
+
+        for (const auto& opt : cli_parser_options_) {
+            if (opt.long_name == key && !opt.default_value.empty()) {
+                return convert<T>(opt.default_value);
+            }
+        }
+
+        throw ConfigurationError("Configuration value not found for key: " + key);
+    }
+
+    template<typename T>
+    T get(const std::string& key, const T& default_value) const noexcept {
+        try {
+            return get<T>(key);
+        } catch (...) {
+            return default_value;
+        }
+    }
+
+    void print_help() const { cli_parser_->print_help(); }
+    bool help_requested() const { return help_requested_; }
+    void add_options(std::vector<CLIParser::Option> options) { cli_parser_options_ = options; cli_parser_ = new CLIParser(cli_parser_options_); }
+private:
+    AppConfig() {
+        cli_parser_options_ = {
+            {"help", "", CLIParser::Type::Boolean, "Show help", "false"}
+        };
+        cli_parser_ = new CLIParser(cli_parser_options_);
+    }
+
+    template<typename T>
+    T convert(std::string_view value) const {
+        if constexpr (std::is_same_v<T, std::string>) {
+            return std::string(value);
+        } else if constexpr (std::is_same_v<T, bool>) {
+            return (value == "true" || value == "1");
+        } else if constexpr (std::is_same_v<T, int>) {
+            try {
+                return std::stoi(std::string(value));
+            } catch (...) {
+                throw ConfigurationError("Invalid integer value: " + std::string(value));
+            }
+        } else if constexpr (std::is_same_v<T, float>) {
+            try {
+                return std::stof(std::string(value));
+            } catch (...) {
+                throw ConfigurationError("Invalid float value: " + std::string(value));
+            }
+        }
+    }
+
+    CLIParser* cli_parser_ = nullptr;
+    EnvParser env_parser_;
+    
+    std::vector<CLIParser::Option> cli_parser_options_;
+    CLIParser::ParseResult cli_parse_result_;
+    bool help_requested_ = false;
+};
+
