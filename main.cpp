@@ -37,7 +37,7 @@ int main(int argc, char **argv)
     config.initialize(argc, argv);
     GlobalDatabase::instance().configureAutoPersist("db_backup.bson");
     GlobalDatabase::instance().configurePersistStrategy(true);
-    GlobalDatabase::instance().initialize("config.json");
+    GlobalDatabase::instance().initialize("");
     const bool test_mode = config.get<bool>("test");
     try {
 

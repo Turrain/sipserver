@@ -17,7 +17,11 @@
 
 class Agent {
 public:
-    explicit Agent(const json& config = json::object()) : config_(config) {}
+    explicit Agent(const json& config = json::object()) : config_(config) {
+        this->whisper_client_ = std::make_unique<WhisperClient>();
+        this->auralis_client_ = std::make_unique<AuralisClient>();
+        this->connect_services();
+    }
     
     using SpeechCallback = std::function<void(const std::vector<int16_t>&)>;
     // LLM RESPONSE
@@ -35,7 +39,7 @@ public:
     
 protected:
     SpeechCallback on_speech;
-    MessageList history_;
+    std::vector<Message> history_;
     std::mutex history_mutex_;
     json config_;
     json metadata_;
@@ -62,7 +66,6 @@ public:
 
     void add_agent(const std::string& id, const json& config) {
         auto agent = std::make_shared<Agent>(config);
-        agent->connect_services();
         
         {
             std::unique_lock lock(agents_mutex_);
@@ -103,7 +106,6 @@ public:
         auto agent = get_agent(id);
         if (agent) {
             agent->update_config(config);
-            agent->connect_services();  // Reconnect with new config
             persist_agent(id, config);
         }
     }
@@ -129,7 +131,6 @@ private:
     }
      void internal_add_agent(const std::string& id, const json& config) {
         auto agent = std::make_shared<Agent>(config);
-        agent->connect_services();
         {
             std::unique_lock lock(agents_mutex_);
             agents_[id] = agent;

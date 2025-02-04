@@ -200,17 +200,22 @@ void Server::setupRoutes()
             json_agents.push_back({ { "config", agent->get_config() } });
         }
 
-        res.set_content(json_agents.dump(), "application/json");
+        res.set_content(json_agents.dump(2), "application/json");
     });
 
     // GET /agents/:id/think - Process agent's thinking
-    m_server.Get("/agents/(.*)/think", [](const httplib::Request &req, httplib::Response &res) {
+    m_server.Post("/agents/(.*)/think", [](const httplib::Request &req, httplib::Response &res) {
         std::string id = req.matches[1];
+        try{
         auto data = json::parse(req.body);
         std::string text = data["text"];
         std::string result = AgentManager::getInstance().get_agent(id)->process_message(text);
         res.status = 200;
         res.set_content(result, "text/plain");
+        } catch (const std::exception &e) {
+            res.status = 500;
+            res.set_content(json { { "error", e.what() } }.dump(), "application/json");
+        }
     });
 
     // GET /agents/:id - Get agent by ID
