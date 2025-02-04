@@ -11,6 +11,7 @@ void Agent::set_speech_callback(SpeechCallback callback)
 void Agent::connect_services()
 {
     try {
+        //TODO: DON"T FORGET
      //   this->whisper_client_->connect("http://localhost:8080");
         // this->whisper_client_->set_transcription_callback(
         //     [this](const std::string &transcription) {

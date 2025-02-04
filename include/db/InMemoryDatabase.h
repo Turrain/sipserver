@@ -559,6 +559,7 @@ private:
 
 class InMemoryDatabase {
 public:
+    void clear() noexcept { tables_.clear(); }
     void saveToDirectory(const std::string &path) const
     {
         namespace fs = std::filesystem;

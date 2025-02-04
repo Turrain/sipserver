@@ -120,12 +120,20 @@ private:
             for (const auto& [id, doc] : agents_table) {
                 try {
                     json config = json::parse(doc.toJson().dump());
-                    add_agent(id, config);
+                    internal_add_agent(id, config);
                 } catch (const std::exception& e) {
                     LOG_ERROR << "Failed to load agent " << id << ": " << e.what();
                 }
             }
         });
+    }
+     void internal_add_agent(const std::string& id, const json& config) {
+        auto agent = std::make_shared<Agent>(config);
+        agent->connect_services();
+        {
+            std::unique_lock lock(agents_mutex_);
+            agents_[id] = agent;
+        }
     }
 
      void persist_agent(const std::string& id, const json& config) {
