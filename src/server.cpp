@@ -191,157 +191,72 @@ void Server::setupRoutes()
 #pragma region Agent
 
     // GET /agents - List all agents
-    m_server.Get("/agents", [this](const httplib::Request &req, httplib::Response &res) {
-        res.set_content(m_agentManager->config().getData().dump(), "application/json");
-    });
+    m_server.Get("/agents", [](const httplib::Request &req, httplib::Response &res) {
+        auto &manager = AgentManager::getInstance();
+        auto agents = manager.get_agents();
 
-    // POST /agents - Create new agent with initial config
-    m_server.Post("/agents", [this](const httplib::Request &req, httplib::Response &res) {
-        try {
-            auto body = json::parse(req.body);
-
-            if (!body.contains("id") || !body["id"].is_string()) {
-                res.status = 400;
-                res.set_content(json { { "error", "Missing/invalid 'id' field" } }.dump(),
-                    "application/json");
-                return;
-            }
-
-            // id
-            const auto &id = body["id"].get<std::string>();
-            // provider
-            const auto &provider = body.value("provider", "ollama");
-            // provider_options
-            const auto &config_patch = body.value("provider_options", json::object());
-            // Check if agent already exists
-            if (m_agentManager->get_agent(id)) {
-                res.status = 409;
-                res.set_content(json { { "error", "Agent already exists" } }.dump(),
-                    "application/json");
-                return;
-            }
-
-            auto agent = m_agentManager->create_agent(id);
-
-            agent->configure("/provider", provider);
-            agent->configure("/provider_options", config_patch);
-
-            if (agent) {
-                res.status = 201;
-                res.set_content(agent->config().getData().dump(),
-                    "application/json");
-            } else {
-                res.status = 500;
-                res.set_content(json { { "error", "Agent creation failed" } }.dump(),
-                    "application/json");
-            }
-        } catch (const json::exception &e) {
-            res.status = 400;
-            res.set_content(json { { "error", "Invalid JSON" } }.dump(),
-                "application/json");
+        nlohmann::json json_agents;
+        for (const auto &agent: agents) {
+            json_agents.push_back({ { "config", agent->get_config() } });
         }
+
+        res.set_content(json_agents.dump(), "application/json");
     });
 
-    // POST /agents/:id/think - Make agent think
-    m_server.Post("/agents/:id/think", [this](const httplib::Request &req, httplib::Response &res) {
-        try {
-            auto id = req.path_params.at("id");
-            auto body = json::parse(req.body);
-
-            if (!body.contains("input")) {
-                res.status = 400;
-                res.set_content(json { { "error", "Missing 'input' field" } }.dump(),
-                    "application/json");
-                return;
-            }
-
-            auto agent = m_agentManager->get_agent(id);
-            if (!agent) {
-                res.status = 404;
-                res.set_content(json { { "error", "Agent not found" } }.dump(),
-                    "application/json");
-                return;
-            }
-            auto text = agent->process_message(body["input"].get<std::string>());
-            LOG_DEBUG << text;
-            res.status = 200;
-            res.set_content(json { { "text", text } }.dump(),
-                "application/json");
-        } catch (const json::exception &e) {
-            res.status = 400;
-            res.set_content(json { { "error", "Invalid JSON" } }.dump(),
-                "application/json");
-        }
-    });
-
-    // PATCH /agents/:id - Update agent configuration
-    m_server.Patch(R"(/agents/([^/]+))", [this](const httplib::Request &req, httplib::Response &res) {
-        try {
-            std::string id = req.matches[1];
-            auto patch = json::parse(req.body);
-
-            if (!patch.is_object()) {
-                res.status = 400;
-                res.set_content(json { { "error", "Invalid JSON format" } }.dump(),
-                    "application/json");
-                return;
-            }
-
-            auto agent = m_agentManager->get_agent(id);
-            if (!agent) {
-                res.status = 404;
-                res.set_content(json { { "error", "Agent not found" } }.dump(),
-                    "application/json");
-                return;
-            }
-
-            // Handle configuration updates
-            for (const auto &[path, value]: patch.items()) {
-                agent->configure("/" + path, value);
-            }
-            LOG_DEBUG << agent->config().getData().dump(4);
-
-            res.status = 200;
-            res.set_content(json {
-                                { "id", id },
-                                { "status", "updated" } }
-                                .dump(),
-                "application/json");
-
-        } catch (const json::exception &e) {
-            res.status = 400;
-            res.set_content(json { { "error", "Invalid JSON" } }.dump(),
-                "application/json");
-        } catch (const std::exception &e) {
-            res.status = 500;
-            res.set_content(json { { "error", e.what() } }.dump(),
-                "application/json");
-        }
-    });
-
-    // GET /agents/:id - Get agent config state
-    m_server.Get("/agents/:id", [this](const httplib::Request &req, httplib::Response &res) {
-        auto id = req.path_params.at("id");
-
-        if (auto agent = m_agentManager->get_agent(id)) {
-            auto cfg = agent->config().getData().dump();
-            res.status = 200;
-            res.set_content(cfg, "application/json");
-        } else {
-            res.status = 404;
-            res.set_content(json { { "error", "Agent not found" } }.dump(),
-                "application/json");
-        }
-    });
-
-    // DELETE /agents/:id - Remove agent
-    m_server.Delete(R"(/agents/([^/]+))", [this](const httplib::Request &req, httplib::Response &res) {
+    // GET /agents/:id - Get agent by ID
+    m_server.Get("/agents/(.*)", [](const httplib::Request &req, httplib::Response &res) {
         std::string id = req.matches[1];
+        auto agent = AgentManager::getInstance().get_agent(id);
 
-        // Remove agent
-        m_agentManager->remove_agent(id);
+        if (!agent) {
+            res.status = 404;
+            return;
+        }
 
-        // Always return 204 as per REST convention
+        nlohmann::json response = {
+            { "id", id },
+            { "config", agent->get_config() }
+        };
+        res.set_content(response.dump(), "application/json");
+    });
+
+    // Create new agent
+    m_server.Post("/agents", [](const httplib::Request &req, httplib::Response &res) {
+        try {
+            auto json_body = nlohmann::json::parse(req.body);
+            std::string id = json_body["id"];
+            auto config = json_body["config"];
+
+            AgentManager::getInstance().add_agent(id, config);
+            res.status = 201;
+        } catch (const std::exception &e) {
+            res.status = 400;
+            res.set_content(e.what(), "text/plain");
+        }
+    });
+
+    // Update agent config
+    m_server.Put("/agents/(.*)", [](const httplib::Request &req, httplib::Response &res) {
+        std::string id = req.matches[1];
+        try {
+            auto json_body = nlohmann::json::parse(req.body);
+            AgentManager::getInstance().update_agent_config(id, json_body);
+            res.status = 204;
+        } catch (const std::exception &e) {
+            res.status = 400;
+            res.set_content(e.what(), "text/plain");
+        }
+    });
+
+    // Delete agent
+    m_server.Delete("/agents/(.*)", [](const httplib::Request &req, httplib::Response &res) {
+        std::string id = req.matches[1];
+        if (!AgentManager::getInstance().get_agent(id)) {
+            res.status = 404;
+            return;
+        }
+
+        AgentManager::getInstance().remove_agent(id);
         res.status = 204;
     });
 

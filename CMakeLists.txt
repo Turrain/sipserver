@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(server)
 include(cmake/deps.cmake)
+#set(CMAKE_C_COMPILER "clang" CACHE STRING "C compiler" FORCE)
+#set(CMAKE_CXX_COMPILER "clang++" CACHE STRING "C++ compiler" FORCE)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -28,7 +30,7 @@ set(COMMON_COMPILE_OPTIONS
 )
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
-file(GLOB SOURCES "src/main.cpp") 
+file(GLOB SOURCES "src/*.cpp") 
 add_executable(server main.cpp ${SOURCES})
 #add_library(server STATIC ${SOURCES})
 file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})

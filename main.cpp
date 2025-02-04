@@ -27,15 +27,15 @@ static void runTestMode()
         { { { "role", "system" }, { "content", "system_prompt" } } });
 
     LOG_DEBUG << result.response;
-    
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {
 
     Logger::setMinLevel(Level::Debug);
+    LOG_DEBUG << "TEST";
     AppConfig &config = AppConfig::getInstance();
-    config.add_options({ { "test", "", CLIParser::Type::Boolean, "test", "false" } });
+    config.add_options({ { "test", "t", CLIParser::Type::Boolean, "test", "false" } });
     config.initialize(argc, argv);
     const bool test_mode = config.get<bool>("test");
     try {
@@ -44,8 +44,8 @@ int main(int argc, char *argv[])
             LOG_CRITICAL << "Test mode enabled";
             runTestMode();
         } else {
-       //     Server server();
-          //  server.run();
+        Server server;
+        server.run();
         }
     } catch (const std::exception &e) {
         std::cerr << "Initialization Error: " << e.what() << std::endl;
@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
 //         user1.insert("age", Value(3.0));
 //         user1.insert("email", Value("alice@example.com"));
 //         users.tryInsertDocument("user_123", user1);
-
 //         LOG_CRITICAL << users.getDocument("user_123").toJson().dump(4);
 
 //         Document user2;
@@ -102,7 +101,6 @@ int main(int argc, char *argv[])
 //         // Find all users over 30
 //         auto seniorUsers = users.findDocumentsByValue("age", 3.5);
 //         std::cout << "Found " << seniorUsers.size() << " senior users\n";
-
 //         // Get a specific document
 //         try {
 //             const Document &bob = users.getDocument("user_456");

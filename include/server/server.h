@@ -17,6 +17,5 @@ public:
 private:
     AppConfig &config = AppConfig::getInstance();
     std::shared_ptr<Manager> m_manager;
-    std::shared_ptr<AgentManager> m_agentManager;
     httplib::Server m_server;
 };

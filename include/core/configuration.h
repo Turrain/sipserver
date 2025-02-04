@@ -21,17 +21,17 @@
 #include <optional>
 
 namespace utils {
-    [[nodiscard]] std::string trim(std::string_view s) {
+    [[nodiscard]] inline std::string trim(std::string_view s) {
         auto is_space = [](unsigned char c) { return std::isspace(c); };
         auto start = std::find_if_not(s.begin(), s.end(), is_space);
         auto end = std::find_if_not(s.rbegin(), s.rend(), is_space).base();
         return std::string(start, end);
     }
 
-    [[nodiscard]] constexpr bool starts_with(std::string_view str, std::string_view prefix) noexcept {
+    [[nodiscard]] inline constexpr bool starts_with(std::string_view str, std::string_view prefix) noexcept {
         return str.substr(0, prefix.size()) == prefix;
     }
-    [[nodiscard]] bool file_exists(const std::string& filepath) {
+    [[nodiscard]] inline bool file_exists(const std::string& filepath) {
         #if defined(HAS_FILESYSTEM)
                 std::error_code ec;
                 return fs::exists(filepath, ec);
@@ -55,7 +55,7 @@ namespace utils {
     };
 
     // Convert string to uppercase
-    [[nodiscard]] std::string to_upper(std::string_view str) {
+    [[nodiscard]] inline std::string to_upper(std::string_view str) {
         std::string result(str);
         std::transform(result.begin(), result.end(), result.begin(),
                       [](unsigned char c) { return std::toupper(c); });
@@ -173,7 +173,7 @@ public:
         }
     }
 
-    [[nodiscard]] ParseResult parse(int argc, const char* const argv[]) {
+    [[nodiscard]] ParseResult parse(int argc, char **  argv) {
         try {
             for (int i = 1; i < argc;) {
                 std::string_view arg = argv[i];
@@ -287,6 +287,7 @@ private:
     }
 
     int handle_short_option(int argc, const char* const argv[], int i) {
+        
         std::string_view arg = argv[i];
         std::string_view key_part = arg.substr(1);
         if (key_part.empty()) return i + 1;
@@ -347,6 +348,7 @@ public:
 
     void initialize(int argc, char* argv[]) {
         cli_parse_result_ = cli_parser_->parse(argc, argv);
+        
         if (!cli_parse_result_.success) {
             throw ConfigurationError(cli_parse_result_.error_message);
         }
@@ -402,7 +404,7 @@ public:
 
     void print_help() const { cli_parser_->print_help(); }
     bool help_requested() const { return help_requested_; }
-    void add_options(std::vector<CLIParser::Option> options) { cli_parser_options_ = options; cli_parser_ = new CLIParser(cli_parser_options_); }
+    void add_options(std::vector<CLIParser::Option> options) { cli_parser_options_ = options; std::cout<<options[0].long_name<<std::endl; cli_parser_ = new CLIParser(cli_parser_options_); }
 private:
     AppConfig() {
         cli_parser_options_ = {
