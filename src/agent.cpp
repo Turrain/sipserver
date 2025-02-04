@@ -11,13 +11,13 @@ void Agent::set_speech_callback(SpeechCallback callback)
 void Agent::connect_services()
 {
     try {
-        this->whisper_client_->connect("http://localhost:8080");
+        this->whisper_client_->connect("ws://stt:8765");
         this->whisper_client_->set_transcription_callback(
             [this](const std::string &transcription) {
                 auto res = this->process_message(transcription);
                 this->generate_audio(res);
             });
-        this->auralis_client_->connect("http://localhost:8081");
+        this->auralis_client_->connect("ws://tts:8766");
     } catch (...) {
     }
 }

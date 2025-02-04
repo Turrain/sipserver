@@ -45,7 +45,7 @@ local ollama_provider = Provider.create({
     local serialized_body = cjson.encode(request_body)
 
     -- Make API call to local Ollama instance
-    local req = http.new_from_uri("http://localhost:11434/api/chat")
+    local req = http.new_from_uri("http://ollama:11434/api/chat")
     req.headers:upsert(":method", "POST")
     req.headers:upsert("content-type", "application/json")
     req:set_body(serialized_body)
