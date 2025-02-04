@@ -25,8 +25,8 @@ using json = nlohmann::json;
 struct Value;
 using Array = std::vector<Value>;
 using Object = std::unordered_map<std::string, Value>;
-
 struct Value {
+    // The variant now holds a dedicated null type (std::monostate) plus other alternatives.
     std::variant<
         std::monostate,
         std::string,
@@ -37,39 +37,28 @@ struct Value {
         Object>
         data;
 
-    // Direct constructors
-    explicit Value(int n) :
-        Value(static_cast<int64_t>(n)) { }
-    explicit Value(Object obj) :
-        data(std::move(obj)) { }
-    explicit Value(Array arr) :
-        data(std::move(arr)) { }
-    explicit Value(std::string s) :
-        data(std::move(s)) { }
-    explicit Value(const char *s) :
-        Value(std::string(s)) { }
-    explicit Value(int64_t n) :
-        data(n) { }
-    explicit Value(double d) :
-        data(d) { }
-    explicit Value(bool b) :
-        data(b) { }
-    explicit Value(std::monostate = {}) :
-        data(std::monostate {}) { }
+    // Direct constructors remain mostly the same.
+    explicit Value(int n) : Value(static_cast<int64_t>(n)) { }
+    explicit Value(Object obj) : data(std::move(obj)) { }
+    explicit Value(Array arr) : data(std::move(arr)) { }
+    explicit Value(std::string s) : data(std::move(s)) { }
+    explicit Value(const char *s) : Value(std::string(s)) { }
+    explicit Value(int64_t n) : data(n) { }
+    explicit Value(double d) : data(d) { }
+    explicit Value(bool b) : data(b) { }
+    explicit Value(std::monostate nm = {}) : data(nm) { }
 
-    // JSON constructor
-    explicit Value(const json &j)
-    {
+    // Improved JSON constructor:
+    // Instead of using a try-catch, we now test explicitly whether the number is an integer or float.
+    explicit Value(const json &j) {
         if (j.is_null()) {
-            data = std::monostate {};
+            data = std::monostate{};
         } else if (j.is_string()) {
             data = j.get<std::string>();
-        } else if (j.is_number()) {
-            try {
-                data = j.get<int64_t>();
-            } catch (...) {
-                data = j.get<double>();
-            }
+        } else if (j.is_number_integer()) {
+            data = j.get<int64_t>();
+        } else if (j.is_number_float()) {
+            data = j.get<double>();
         } else if (j.is_boolean()) {
             data = j.get<bool>();
         } else if (j.is_array()) {
@@ -81,9 +70,9 @@ struct Value {
             data = std::move(arr);
         } else if (j.is_object()) {
             Object obj;
-            obj.reserve(j.size());
-            for (auto &&[key, val]: j.items()) {
-                obj.emplace(std::move(key), Value(val));
+            // Note: if using C++20 you can use obj.reserve(j.size());
+            for (const auto &[key, val]: j.items()) {
+                obj.emplace(key, Value(val));
             }
             data = std::move(obj);
         } else {
@@ -91,26 +80,22 @@ struct Value {
         }
     }
 
-    // JSON conversion
-    json toJson() const
-    {
+    // JSON conversion remains unchanged.
+    json toJson() const {
         struct Visitor {
             json operator()(std::monostate) const { return nullptr; }
             json operator()(const std::string &s) const { return s; }
             json operator()(int64_t n) const { return n; }
-
             json operator()(double d) const { return d; }
             json operator()(bool b) const { return b; }
-            json operator()(const Array &arr) const
-            {
+            json operator()(const Array &arr) const {
                 json j = json::array();
                 for (const auto &v: arr) {
                     j.push_back(v.toJson());
                 }
                 return j;
             }
-            json operator()(const Object &obj) const
-            {
+            json operator()(const Object &obj) const {
                 json j = json::object();
                 for (const auto &[k, v]: obj) {
                     j[k] = v.toJson();
@@ -118,16 +103,15 @@ struct Value {
                 return j;
             }
         };
-        return std::visit(Visitor {}, data);
+        return std::visit(Visitor{}, data);
     }
 
-    // Equality comparison
-    bool operator==(const Value &other) const noexcept
-    {
+    // Equality comparison (unchanged, but note that using std::visit here lets us compare arithmetic types even if their
+    // underlying types differ)
+    bool operator==(const Value &other) const noexcept {
         return std::visit([](const auto &a, const auto &b) {
             using A = std::decay_t<decltype(a)>;
             using B = std::decay_t<decltype(b)>;
-
             if constexpr (!std::is_same_v<A, B>) {
                 if constexpr (std::is_arithmetic_v<A> && std::is_arithmetic_v<B>) {
                     return a == b;
@@ -135,7 +119,10 @@ struct Value {
                 return false;
             } else {
                 if constexpr (std::is_same_v<A, Array>) {
-                    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](const Value &x, const Value &y) { return x == y; });
+                    return a.size() == b.size() &&
+                           std::equal(a.begin(), a.end(), b.begin(), [](const Value &x, const Value &y) {
+                               return x == y;
+                           });
                 } else if constexpr (std::is_same_v<A, Object>) {
                     if (a.size() != b.size())
                         return false;
@@ -148,8 +135,7 @@ struct Value {
                 }
                 return a == b;
             }
-        },
-            data, other.data);
+        }, data, other.data);
     }
 };
 
@@ -670,5 +656,10 @@ public:
 private:
     std::unordered_map<std::string, Table> tables_;
 };
+
+
+
+
+
 
 

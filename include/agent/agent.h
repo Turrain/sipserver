@@ -35,9 +35,10 @@ public:
     
 protected:
     SpeechCallback on_speech;
-    std::vector<Message> history_;
+    MessageList history_;
     std::mutex history_mutex_;
     json config_;
+    json metadata_;
 
     std::unique_ptr<WhisperClient> whisper_client_;
     std::unique_ptr<AuralisClient> auralis_client_;
@@ -129,6 +130,9 @@ private:
 
      void persist_agent(const std::string& id, const json& config) {
         GlobalDatabase::instance().execute([&](auto& db) {
+            if (!db.hasTable("agents")) {
+                db.createTable("agents");
+            }
             auto& agents_table = db.getTable("agents");
             Document doc(config);
             agents_table.insertDocument(id, doc);

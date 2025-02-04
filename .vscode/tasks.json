@@ -17,7 +17,7 @@
         {
             "label": "configure",
             "type": "shell",
-            "command": "cmake -B ${workspaceFolder}/build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++",
+            "command": "cmake -B ${workspaceFolder}/build -DCMAKE_BUILD_TYPE=Debug",
             "group": "build",
             "presentation": {
                 "reveal": "silent"

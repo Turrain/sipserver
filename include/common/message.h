@@ -22,3 +22,5 @@ inline void from_json(const json& j, Message& m) {
     j.at("role").get_to(m.role);
     j.at("content").get_to(m.content);
 }
+
+typedef std::vector<Message> MessageList;
