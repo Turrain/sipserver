@@ -10,7 +10,7 @@ using json = nlohmann::json;
 Server::Server()
 {
     ProviderManager::getInstance().load_providers_from_folder("./lua");
-
+    m_manager = std::make_shared<Manager>();
     setupRoutes();
 }
 

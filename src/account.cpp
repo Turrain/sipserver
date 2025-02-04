@@ -4,15 +4,14 @@
 #include "sip/call.h"
 #include "utils/logger.h"
 
-Account::Account(std::shared_ptr<AgentManager> agentManager) :
-    m_agentManager(agentManager)
+Account::Account() 
 {
 }
 
 void Account::setAgent(const std::string &agentId)
 {
     m_agentId = agentId;
-    m_agent = m_agentManager->get_agent(agentId);
+    m_agent = m_agentManager.get_agent(agentId);
 }
 
 std::shared_ptr<Agent> Account::getAgent() const

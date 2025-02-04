@@ -30,7 +30,7 @@ struct RegistrationState {
 
 class Manager {
 public:
-    Manager(std::shared_ptr<AgentManager> manager);
+    Manager();
     ~Manager();
 
     RegistrationStatus addAccount(const std::string &accountId, const std::string &domain,
@@ -70,5 +70,5 @@ private:
     std::mutex m_accountsMutex;
     std::mutex m_callsMutex;
 
-    std::shared_ptr<AgentManager> m_agentManager;
+    AgentManager& m_agentManager = AgentManager::getInstance();
 };

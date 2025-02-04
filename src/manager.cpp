@@ -5,8 +5,7 @@
 #include <iostream>
 #include <memory>
 
-Manager::Manager(std::shared_ptr<AgentManager> manager) :
-    m_agentManager(manager)
+Manager::Manager()
 {
     try {
 
@@ -19,7 +18,7 @@ Manager::Manager(std::shared_ptr<AgentManager> manager) :
 
         // Create UDP transport
         pj::TransportConfig transportConfig;
-        transportConfig.port = 18090;
+        transportConfig.port = 0;
         m_endpoint.transportCreate(PJSIP_TRANSPORT_UDP, transportConfig);
 
         // Disable audio device
@@ -64,7 +63,7 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
             pj::AuthCredInfo credInfo("digest", "*", username, 0, password);
             accountConfig.sipConfig.authCreds.push_back(credInfo);
 
-            auto account = std::make_unique<Account>(m_agentManager);
+            auto account = std::make_unique<Account>();
 
          account->registerRegStateCallback(
                 [registrationPromise, called = false](bool /*state*/, pj_status_t status) mutable {

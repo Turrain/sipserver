@@ -43,6 +43,7 @@ target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
 target_compile_options(server PRIVATE
     $<$<CONFIG:Debug>:-g>
     -Wno-notes
+    -Wno-cpp
 )
 
 # Linker flags (rdynamic for symbol visibility in Release)
