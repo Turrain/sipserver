@@ -5,7 +5,7 @@
 
 void Agent::set_speech_callback(SpeechCallback callback)
 {
-    this->on_speech = callback;
+    this->auralis_client_->set_audio_callback(callback);
 }
 
 void Agent::connect_services()

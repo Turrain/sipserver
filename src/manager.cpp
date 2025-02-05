@@ -18,7 +18,7 @@ Manager::Manager()
 
         // Create UDP transport
         pj::TransportConfig transportConfig;
-        transportConfig.port = 0;
+        transportConfig.port = 18090;
         m_endpoint.transportCreate(PJSIP_TRANSPORT_UDP, transportConfig);
 
         // Disable audio device
