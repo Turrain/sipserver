@@ -28,7 +28,7 @@ void Call::onCallMediaState(pj::OnCallMediaStateParam &prm)
             if (direction == Call::INCOMING) {
                 std::cout<<" Incoming call from " << ci.remoteUri;
                 LOG_DEBUG << "Incoming call from " << ci.remoteUri;
-                agent->generate_audio("Привет, я твой ассистент.");
+          //      agent->generate_audio("Привет, я твой ассистент.");
               //  agent->generate_response("Привет, я твой ассистент.");
                 //   agent->sendText("Привет, я твой ассистент.");
             }
@@ -49,23 +49,35 @@ Call::Call(Account &acc, int call_id) :
 {
     direction = OUTGOING;
     LOG_WARNING << "CALL CREATED";
-    this->getAgent()->set_speech_callback(
+    this->uagent.set_speech_callback(
         [this](const std::vector<int16_t> &audio_data) {
             mediaPort.addToQueue(audio_data);
         });
     
-    mediaPort.vad.setVoiceSegmentCallback(
+ mediaPort.vad.setVoiceSegmentCallback(
         [this](const std::vector<pj::MediaFrame> &frames) {
             LOG_DEBUG << "Voice segment detected";
           //  this->getAgent()->generate_response(VAD::mergeFrames(frames));
-            this->getAgent()->process_audio(VAD::mergeFrames(frames));
+            this->uagent.process_audio(VAD::mergeFrames(frames));
         });
 
-    mediaPort.vad.setSpeechStartedCallback(
-        [this]() {
-            LOG_DEBUG << "Speech started";
-            mediaPort.clearQueue();
-        });
+    // this->getAgent()->set_speech_callback(
+    //     [this](const std::vector<int16_t> &audio_data) {
+    //         mediaPort.addToQueue(audio_data);
+    //     });
+    
+    // mediaPort.vad.setVoiceSegmentCallback(
+    //     [this](const std::vector<pj::MediaFrame> &frames) {
+    //         LOG_DEBUG << "Voice segment detected";
+    //       //  this->getAgent()->generate_response(VAD::mergeFrames(frames));
+    //         this->getAgent()->process_audio(VAD::mergeFrames(frames));
+    //     });
+
+    // mediaPort.vad.setSpeechStartedCallback(
+    //     [this]() {
+    //         LOG_DEBUG << "Speech started";
+    //         mediaPort.clearQueue();
+    //     });
     
     
 

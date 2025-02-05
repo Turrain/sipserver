@@ -21,6 +21,7 @@ public:
     } direction;
 
 private:
+    UltravoxAgent uagent;
     Account m_account;
     MediaPort mediaPort;
 };
