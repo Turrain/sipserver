@@ -19,6 +19,7 @@ void Agent::connect_services()
             });
         this->auralis_client_->connect("ws://tts:8766");
     } catch (...) {
+        
     }
 }
 void Agent::process_audio(const std::vector<int16_t> &audio_data)

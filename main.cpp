@@ -12,6 +12,31 @@
 #include "server/server.h"
 #include "utils/logger.h"
 // Function implementations
+#include <execinfo.h>
+#include <csignal>
+#include <boost/stacktrace.hpp>
+
+// Function to print the current stack trace
+void print_stacktrace() {
+    // Boost automatically demangles symbols if -rdynamic is provided when linking.
+    std::cout << boost::stacktrace::stacktrace() << std::endl;
+}
+
+// Terminate handler: called when an unhandled exception is thrown.
+void my_terminate() {
+    std::cerr << "\nUnhandled exception! Stack trace:" << std::endl;
+    print_stacktrace();
+    std::abort(); // Optionally generate a core dump.
+}
+
+// Signal handler: catches signals like SIGSEGV and SIGABRT.
+void signal_handler(int signal) {
+    std::cerr << "\nCaught signal " << signal << ". Stack trace:" << std::endl;
+    print_stacktrace();
+    boost::stacktrace::safe_dump_to("./backtrace.dump");
+    std::exit(signal);
+}
+
 
 static void runTestMode()
 {
@@ -31,6 +56,17 @@ static void runTestMode()
 
 int main(int argc, char **argv)
 {
+     std::set_terminate(my_terminate);
+
+    // Register signal handlers for fatal signals.
+    std::signal(SIGSEGV, signal_handler); // Segmentation fault
+    std::signal(SIGABRT, signal_handler); // Abort signal
+    std::signal(SIGFPE,  signal_handler); // floating point exception
+    std::signal(SIGILL,  signal_handler); // illegal instruction
+    std::signal(SIGTERM, signal_handler); // termination request
+    std::signal(SIGINT,  signal_handler); // interrupt from keyboard
+
+
     Logger::setMinLevel(Level::Debug);
     AppConfig &config = AppConfig::getInstance();
     config.add_options({ { "test", "t", CLIParser::Type::Boolean, "test", "false" } });

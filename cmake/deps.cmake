@@ -67,9 +67,7 @@ file(GLOB_RECURSE WEBRTC_SOURCES "${WEBRTC_DIR}/*.c" "${WEBRTC_DIR}/*.cc")
 
 add_library(my_webrtc STATIC ${WEBRTC_SOURCES})
 target_include_directories(my_webrtc PUBLIC
-        ${CMAKE_SOURCE_DIR}/include/deps
         ${WEBRTC_DIR}
-        ${CMAKE_SOURCE_DIR}/include/deps/webrtc/common_audio/signal_processing/include
 )
 target_link_libraries(my_webrtc PUBLIC pthread m)
 

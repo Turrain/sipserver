@@ -61,7 +61,12 @@ RegistrationStatus Manager::addAccount(const std::string &accountId,
             accountConfig.regConfig.retryIntervalSec = 2;
 
             pj::AuthCredInfo credInfo("digest", "*", username, 0, password);
+
             accountConfig.sipConfig.authCreds.push_back(credInfo);
+            accountConfig.natConfig.sipStunUse = PJSUA_STUN_USE_DEFAULT;
+            accountConfig.natConfig.mediaStunUse = PJSUA_STUN_USE_DEFAULT;
+            accountConfig.natConfig.contactRewriteUse = 1;
+
 
             auto account = std::make_unique<Account>();
 

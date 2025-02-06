@@ -2,13 +2,14 @@ cmake_minimum_required(VERSION 3.15)
 
 project(server)
 include(cmake/deps.cmake)
-#set(CMAKE_C_COMPILER "clang" CACHE STRING "C compiler" FORCE)
-#set(CMAKE_CXX_COMPILER "clang++" CACHE STRING "C++ compiler" FORCE)
+#  set(CMAKE_C_COMPILER "clang" CACHE STRING "C compiler" FORCE)
+#  set(CMAKE_CXX_COMPILER "clang++" CACHE STRING "C++ compiler" FORCE)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
+set(DBOOST_STACKTRACE_USE_ADDR2LINE 1)
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         set(CMAKE_TOOLCHAIN_FILE ~/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "")
 endif()
@@ -40,15 +41,19 @@ target_link_libraries(server PRIVATE pjproject my_webrtc lua5.4 sol2 websocketpp
 target_compile_definitions(server PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 target_compile_options(server PRIVATE ${COMMON_COMPILE_OPTIONS})
 # Add debug symbols only in Debug build, and set release options
+
 target_compile_options(server PRIVATE
-    $<$<CONFIG:Debug>:-g>
-    -Wno-notes
+    -g
+    -ggdb
     -Wno-cpp
+
+    -no-pie
+
 )
 
 # Linker flags (rdynamic for symbol visibility in Release)
 target_link_options(server PRIVATE
-    $<$<CONFIG:Release>:-rdynamic>
+    -rdynamic
 )
 
 # Optional: Add Link-Time Optimization (LTO) in Release
